@@ -214,8 +214,10 @@ local BulletTPGroup = CombatTab:AddLeftGroupbox("Bullet TP")
 
 local bulletTPConn = nil
 local bulletTPActive = false
+local handledBullets = {}
+local bulletTpCooldown = 0
 
-local function getClosestTarget()
+local function getTargetPart()
     local myPos = LocalPlayer.Character and LocalPlayer.Character:GetPivot().p
     if not myPos then return nil end
     local closest, closestDist = nil, math.huge
@@ -237,58 +239,51 @@ end
 local function enableBulletTP()
     if bulletTPActive then return end
     bulletTPActive = true
+    handledBullets = {}
 
-    local firedBullets = {}
-
-    workspace.DescendantAdded:Connect(function(desc)
-        if not bulletTPActive then return end
-        if not Toggles.BulletTPToggle or not Toggles.BulletTPToggle.Value then return end
-        if not desc:IsA("BasePart") then return end
+    bulletTPConn = RunService.Heartbeat:Connect(function()
+        if not bulletTPActive or not Toggles.BulletTPToggle.Value then return end
 
         local char = LocalPlayer.Character
         if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildOfClass("BasePart")
+        if not root then return end
 
-        task.wait(0.05)
+        local target = getTargetPart()
+        if not target then return end
 
-        if desc.Velocity.Magnitude > 10 then
-            local target = getClosestTarget()
-            if target then
-                desc.CFrame = target.CFrame
-                desc.Velocity = (target.Position - desc.Position).Unit * desc.Velocity.Magnitude
-            end
-        end
-    end)
+        bulletTpCooldown = bulletTpCooldown + 1
+        if bulletTpCooldown % 3 ~= 0 then return end
 
-    bulletTPConn = RunService.Heartbeat:Connect(function()
-        if not bulletTPActive then return end
-        if not Toggles.BulletTPToggle or not Toggles.BulletTPToggle.Value then return end
-
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player == LocalPlayer then continue end
-            local char = player.Character
-            if not char then continue end
-            for _, part in ipairs(char:GetChildren()) do
-                if part:IsA("BasePart") and part.Velocity.Magnitude > 30 then
-                    local target = getClosestTarget()
-                    if target then
-                        part.CFrame = target.CFrame
-                        part.Velocity = (target.Position - part.Position).Unit * part.Velocity.Magnitude
-                    end
+        for _, v in ipairs(workspace:GetChildren()) do
+            if v:IsA("BasePart") and not handledBullets[v] then
+                local dist = (v.Position - root.Position).Magnitude
+                local vel = math.max(v.Velocity.Magnitude, v.AssemblyLinearVelocity.Magnitude)
+                if dist < 80 and vel > 20 then
+                    handledBullets[v] = true
+                    v.CFrame = target.CFrame
+                    v.Velocity = (target.Position - v.Position).Unit * math.max(v.Velocity.Magnitude, 100)
                 end
             end
+        end
+
+        for b in pairs(handledBullets) do
+            if not b.Parent then handledBullets[b] = nil end
+            if #handledBullets > 500 then handledBullets = {} end
         end
     end)
 end
 
 local function disableBulletTP()
     bulletTPActive = false
+    handledBullets = {}
     if bulletTPConn then bulletTPConn:Disconnect(); bulletTPConn = nil end
 end
 
 BulletTPGroup:AddToggle("BulletTPToggle", {
     Text = "Bullet TP",
     Default = false,
-    Tooltip = "Teleports projectiles/bullets to the nearest enemy",
+    Tooltip = "Teleports nearby high-velocity parts to the nearest enemy",
     Callback = function(v)
         if v then enableBulletTP() else disableBulletTP() end
     end,
@@ -296,7 +291,7 @@ BulletTPGroup:AddToggle("BulletTPToggle", {
 
 BulletTPGroup:AddDivider()
 
-BulletTPGroup:AddLabel("Detects high-velocity parts and teleports them to the closest enemy head.", true)
+BulletTPGroup:AddLabel("Checks workspace parts within 80 studs moving faster than 20 velocity. Only processes every 3 frames.", true)
 
 Library:SetWatermark("OP1 King")
 
