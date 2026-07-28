@@ -448,51 +448,72 @@ SilentAimGroup:AddButton({
     end,
 })
 
--- Recoil Macro (tracks mouse rotation independently, pulls down while shooting to counter recoil)
+-- Recoil Macro (patches gun recoil ov.func + mousemoverel pull-down)
 
 local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Macro")
 
 local recoilActive = false
-local macroPullV = 0.002
-local macroPullH = 0.001
-local macroYaw = 0
-local macroPitch = 0
+local recoilPullV = 15
+local recoilPullH = 0
+local recoilPullThread = nil
 
-local function macroStep()
-    local cam = workspace.CurrentCamera
-    if not cam then return end
-    local delta = game:GetService("UserInputService"):GetMouseDelta()
-    macroYaw = macroYaw - delta.X * 0.001
-    macroPitch = math.clamp(macroPitch - delta.Y * 0.001, -math.pi / 2.1, math.pi / 2.1)
-    -- pull down while shooting
-    if game:GetService("UserInputService"):IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-        macroPitch = macroPitch + macroPullV
-        macroYaw = macroYaw + macroPullH
+local function patchRecoil(item)
+    if not item then return end
+    local ov = item.recoil
+    if ov and type(ov) == "table" and type(ov.func) == "function" and not ov._rcPatched then
+        ov.func = function() end
+        ov._rcPatched = true
     end
-    cam.CFrame = CFrame.new(cam.CFrame.Position) * CFrame.fromEulerAnglesYXZ(macroYaw, macroPitch, 0)
+end
+
+local function applyPatches()
+    local s, items = pcall(require, ReplicatedStorage.Modules.Items)
+    if s and items then
+        for _, item in pairs(items.items) do
+            patchRecoil(item)
+        end
+    end
+    -- hook create_item for future guns
+    local s2, items2 = pcall(require, ReplicatedStorage.Modules.Items)
+    if s2 and items2 and type(items2.create_item) == "function" and not items2._rcHookedCreate then
+        local orig = items2.create_item
+        items2.create_item = function(inst)
+            local result = orig(inst)
+            patchRecoil(result)
+            return result
+        end
+        items2._rcHookedCreate = true
+    end
+end
+
+local function macroLoop()
+    while recoilActive do
+        task.wait()
+        if game:GetService("UserInputService"):IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+            pcall(function()
+                game:GetService("VirtualInputManager"):SendMouseMoveRelative(recoilPullH, recoilPullV, workspace)
+            end)
+        end
+    end
 end
 
 local function macroEnable()
     if recoilActive then return end
-    local cam = workspace.CurrentCamera
-    if cam then
-        local y, x = cam.CFrame:ToEulerAnglesYXZ()
-        macroYaw = y; macroPitch = x
-    end
     recoilActive = true
-    game:GetService("RunService"):BindToRenderStep("OP1RC", Enum.RenderPriority.Camera.Value + 1, macroStep)
+    applyPatches()
+    recoilPullThread = task.spawn(macroLoop)
     Library:Notify("Recoil Macro enabled", 2)
 end
 
 local function macroDisable()
     recoilActive = false
-    game:GetService("RunService"):UnbindFromRenderStep("OP1RC")
+    if recoilPullThread then task.cancel(recoilPullThread); recoilPullThread = nil end
     Library:Notify("Recoil Macro disabled", 2)
 end
 RecoilGroup:AddToggle("RecoilToggle", {
     Text = "Recoil Macro",
     Default = false,
-    Tooltip = "Overrides camera rotation at Camera.Value+1, pulls down while mouse1 is held to counter recoil.",
+    Tooltip = "Patches gun recoil function + sends mousemoverel pull-down while shooting.",
     Callback = function(v)
         if v then macroEnable() else macroDisable() end
     end,
@@ -502,14 +523,14 @@ RecoilGroup:AddDivider()
 
 RecoilGroup:AddSlider("RecoilV", {
     Text = "Vertical Pull",
-    Default = 50,
+    Default = 15,
     Min = 0,
-    Max = 100,
+    Max = 50,
     Rounding = 1,
-    Suffix = "%",
-    Tooltip = "How hard to pull down while shooting. Increase until recoil is neutralized.",
+    Suffix = "px",
+    Tooltip = "Pixels to pull down per frame while mouse1 held. Start at 15 and adjust.",
     Callback = function(v)
-        macroPullV = v * 0.0001
+        recoilPullV = v
     end,
 })
 
@@ -517,12 +538,12 @@ RecoilGroup:AddSlider("RecoilH", {
     Text = "Horizontal Pull",
     Default = 0,
     Min = 0,
-    Max = 100,
+    Max = 50,
     Rounding = 1,
-    Suffix = "%",
-    Tooltip = "Horizontal counter-pull (positive = right). Adjust if your weapon drifts sideways.",
+    Suffix = "px",
+    Tooltip = "Pixels to pull sideways per frame while mouse1 held. For side-drift.",
     Callback = function(v)
-        macroPullH = v * 0.00005
+        recoilPullH = v
     end,
 })
 
