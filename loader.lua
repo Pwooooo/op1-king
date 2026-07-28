@@ -374,6 +374,18 @@ local SilentAimGroup = CombatTab:AddLeftGroupbox("Silent Aim")
 local gunModuleSa = nil
 local silentAimHooked = false
 local silentAimOrig = nil
+local silentAimFov = 60
+
+local function isInFov(targetPos)
+    local cam = workspace.CurrentCamera
+    if not cam then return true end
+    local camPos = cam.CFrame.Position
+    local lookVec = cam.CFrame.LookVector
+    local toTarget = (targetPos - camPos).Unit
+    local dot = lookVec:Dot(toTarget)
+    local angle = math.deg(math.acos(math.clamp(dot, -1, 1)))
+    return angle <= silentAimFov
+end
 
 local function getGunModuleSA()
     if gunModuleSa then return gunModuleSa end
@@ -389,7 +401,6 @@ local function enableSilentAim()
         Library:Notify("Silent Aim: failed to load Gun module", 3)
         return
     end
-    -- Save reference to the original ray_damage (inherited from Item base)
     local s, item = pcall(require, ReplicatedStorage.Modules.Items.Item)
     if not s or not item.ray_damage then
         Library:Notify("Silent Aim: failed to load Item module", 3)
@@ -401,7 +412,7 @@ local function enableSilentAim()
             local nearest = findNearestEnemy()
             if nearest then
                 local head = nearest:FindFirstChild("Head") or nearest:FindFirstChildOfClass("BasePart")
-                if head then
+                if head and isInFov(head.Position) then
                     direction = (head.Position - origin)
                 end
             end
@@ -431,6 +442,21 @@ SilentAimGroup:AddToggle("SilentAimToggle", {
 
 SilentAimGroup:AddDivider()
 
+SilentAimGroup:AddSlider("SilentAimFov", {
+    Text = "FOV Radius",
+    Default = 60,
+    Min = 5,
+    Max = 500,
+    Rounding = 1,
+    Suffix = " deg",
+    Tooltip = "Maximum angle from camera look direction to redirect hitscan",
+    Callback = function(v)
+        silentAimFov = v
+    end,
+})
+
+SilentAimGroup:AddDivider()
+
 SilentAimGroup:AddButton({
     Text = "Toggle",
     Func = function()
@@ -440,7 +466,7 @@ SilentAimGroup:AddButton({
 
 SilentAimGroup:AddDivider()
 
-SilentAimGroup:AddLabel("Hooks Gun.ray_damage to redirect the hitscan direction to the nearest enemy. The visual firing direction stays unchanged.", true)
+SilentAimGroup:AddLabel("Hooks Gun.ray_damage to redirect the hitscan direction to the nearest enemy within FOV. Visual firing direction stays unchanged.", true)
 
 Library:SetWatermark("OP1 King")
 
