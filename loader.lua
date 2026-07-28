@@ -469,6 +469,137 @@ SilentAimGroup:AddDivider()
 
 SilentAimGroup:AddLabel("Hooks Gun.ray_damage to redirect the hitscan direction to the nearest enemy within FOV. Visual firing direction stays unchanged.", true)
 
+-- Recoil Control (hooks Gun.recoil_function to scale vertical/horizontal recoil)
+
+local RecoilGroup = CombatTab:AddLeftGroupbox("Recoil Control")
+
+local gunModuleRc = nil
+local recoilHooked = false
+local origRecoilFunc_RC = nil
+local patchedItemsRC = {}
+local recoilMultV = 0
+local recoilMultH = 0
+
+local function getGunModuleRC()
+    if gunModuleRc then return gunModuleRc end
+    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
+    if s then gunModuleRc = m end
+    return gunModuleRc
+end
+
+local function enableRecoilControl()
+    if recoilHooked then return end
+    local mod = getGunModuleRC()
+    if not mod then
+        Library:Notify("Recoil Control: failed to load Gun module", 3)
+        return
+    end
+    origRecoilFunc_RC = mod.recoil_function
+    mod.recoil_function = function(p1, p2)
+        if not recoilHooked or not p1 or not p1.states then
+            return origRecoilFunc_RC(p1, p2)
+        end
+        local origUp = p1.states.recoil_up:get()
+        local origSide = p1.states.recoil_side:get()
+        p1.states.recoil_up:set(origUp * recoilMultV * 0.01)
+        p1.states.recoil_side:set(origSide * recoilMultH * 0.01)
+        origRecoilFunc_RC(p1, p2)
+        p1.states.recoil_up:set(origUp)
+        p1.states.recoil_side:set(origSide)
+    end
+    -- Patch existing gun items too
+    local itemsMod = getItemsModule()
+    if itemsMod then
+        for _, item in pairs(itemsMod.items) do
+            if item and type(item.recoil) == "function" then
+                local orig = item.recoil
+                patchedItemsRC[item] = orig
+                item.recoil = function(p1, p2)
+                    if not recoilHooked or not p1 or not p1.states then
+                        return orig(p1, p2)
+                    end
+                    local u = p1.states.recoil_up:get()
+                    local s = p1.states.recoil_side:get()
+                    p1.states.recoil_up:set(u * recoilMultV * 0.01)
+                    p1.states.recoil_side:set(s * recoilMultH * 0.01)
+                    orig(p1, p2)
+                    p1.states.recoil_up:set(u)
+                    p1.states.recoil_side:set(s)
+                end
+            end
+        end
+    end
+    recoilHooked = true
+    Library:Notify("Recoil Control enabled", 2)
+end
+
+local function disableRecoilControl()
+    if not recoilHooked then return end
+    local mod = getGunModuleRC()
+    if mod and origRecoilFunc_RC then
+        mod.recoil_function = origRecoilFunc_RC
+    end
+    for item, orig in pairs(patchedItemsRC) do
+        if item and item.recoil then
+            item.recoil = orig
+        end
+    end
+    patchedItemsRC = {}
+    origRecoilFunc_RC = nil
+    recoilHooked = false
+    Library:Notify("Recoil Control disabled", 2)
+end
+
+RecoilGroup:AddToggle("RecoilToggle", {
+    Text = "Recoil Control",
+    Default = false,
+    Tooltip = "Scales vertical and horizontal recoil by the multiplier below",
+    Callback = function(v)
+        if v then enableRecoilControl() else disableRecoilControl() end
+    end,
+})
+
+RecoilGroup:AddDivider()
+
+RecoilGroup:AddSlider("RecoilV", {
+    Text = "Vertical",
+    Default = 0,
+    Min = 0,
+    Max = 200,
+    Rounding = 1,
+    Suffix = "%",
+    Tooltip = "Vertical recoil multiplier (0 = none, 100 = default, 200 = double)",
+    Callback = function(v)
+        recoilMultV = v
+    end,
+})
+
+RecoilGroup:AddSlider("RecoilH", {
+    Text = "Horizontal",
+    Default = 0,
+    Min = 0,
+    Max = 200,
+    Rounding = 1,
+    Suffix = "%",
+    Tooltip = "Horizontal recoil multiplier (0 = none, 100 = default, 200 = double)",
+    Callback = function(v)
+        recoilMultH = v
+    end,
+})
+
+RecoilGroup:AddDivider()
+
+RecoilGroup:AddButton({
+    Text = "Toggle",
+    Func = function()
+        if recoilHooked then disableRecoilControl() else enableRecoilControl() end
+    end,
+})
+
+RecoilGroup:AddDivider()
+
+RecoilGroup:AddLabel("Hooks Gun.recoil_function to scale recoil_up and recoil_side states before the camera shake calculation. Set to 0% for no recoil, 100% for default.", true)
+
 -- No Gun Movement (hooks Gun.running to prevent weapon movement while moving)
 
 local NoMoveGroup = VisualTab:AddLeftGroupbox("No Gun Movement")
