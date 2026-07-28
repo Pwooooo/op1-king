@@ -448,7 +448,7 @@ SilentAimGroup:AddButton({
     end,
 })
 
--- Recoil Control (scales camera CFrameValue "shoot" offset directly before camera render)
+-- Recoil Control (finds equipped weapon via character Tools, accesses CFrameValue "shoot" offset through Items:get_item)
 
 local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Control")
 
@@ -457,26 +457,33 @@ local recoilMultV = 100
 local recoilMultH = 100
 
 local function rcScaleShoot()
-    local s, items = pcall(require, ReplicatedStorage.Modules.Items)
-    if not s or not items then return end
     local ns = getgenv()._op1_ns_recoil and 0 or 1
     local mulV = recoilMultV * 0.01 * ns
     local mulH = recoilMultH * 0.01 * ns
-    for _, item in pairs(items.items) do
-        if item.owner and item.owner.values then
-            local cf = item.owner.values.cframes
-            if cf and cf.parts then
-                local cam = cf.parts["camera"]
-                if cam and cam.offsets then
-                    local shoot = cam.offsets["shoot"]
-                    if shoot and shoot.Value then
-                        local mx, my, mz = shoot.Value:ToEulerAnglesYXZ()
-                        shoot.Value = CFrame.fromEulerAnglesYXZ(mx * mulV, my * mulH, mz)
-                    end
-                end
-            end
+    local plr = game:GetService("Players").LocalPlayer
+    local char = plr and plr.Character
+    if not char then return end
+    -- find the equipped weapon (Tool in character)
+    local weapon = nil
+    for _, v in pairs(char:GetChildren()) do
+        if v:IsA("Tool") then
+            weapon = v
+            break
         end
     end
+    if not weapon then return end
+    local s, items = pcall(require, ReplicatedStorage.Modules.Items)
+    if not s or not items then return end
+    local item = items.get_item(weapon)
+    if not item or not item.owner or not item.owner.values then return end
+    local cf = item.owner.values.cframes
+    if not cf or not cf.parts then return end
+    local cam = cf.parts["camera"]
+    if not cam or not cam.offsets then return end
+    local shoot = cam.offsets["shoot"]
+    if not shoot or not shoot.Value then return end
+    local mx, my, mz = shoot.Value:ToEulerAnglesYXZ()
+    shoot.Value = CFrame.fromEulerAnglesYXZ(mx * mulV, my * mulH, mz)
 end
 
 local function rcEnable()
