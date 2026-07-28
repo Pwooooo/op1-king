@@ -448,65 +448,86 @@ SilentAimGroup:AddButton({
     end,
 })
 
--- Recoil Control (continuously forces recoil states every frame to scaled values)
+-- Recoil Control (hooks Gun.t.recoil_function + patches existing ovs)
 
 local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Control")
 
 local recoilHooked = false
 local recoilMultV = 100
 local recoilMultH = 100
-local rcHb = nil
+local origRecoilFn = nil
+local recoilFnHookedMod = nil
 local rcBaseValues = {}
-local rcCharMod = nil
 
-local function rcForceLoop()
-    if rcHb then return end
-    local ok, cm = pcall(require, game.ReplicatedStorage.Modules.Character)
-    if ok then rcCharMod = cm end
-    rcHb = game:GetService("RunService").Heartbeat:Connect(function()
-        if not recoilHooked or not rcCharMod then return end
-        local got, char = pcall(rcCharMod.get_char)
-        if not got or not char or not char.values then return end
-        local gun = char.values.equipped
-        if not gun or not gun.states then return end
-        local states = gun.states
-        if not states.recoil_up or not states.recoil_side then return end
-        local okU, curUp = pcall(states.recoil_up.get, states.recoil_up)
-        local okS, curSide = pcall(states.recoil_side.get, states.recoil_side)
-        if not okU or not okS then return end
-        if not rcBaseValues[gun] then
-            rcBaseValues[gun] = { up = curUp, side = curSide }
-        end
-        local base = rcBaseValues[gun]
-        local ns = getgenv()._op1_ns_recoil and 0 or 1
-        local scaledUp = base.up * recoilMultV * 0.01 * ns
-        local scaledSide = base.side * recoilMultH * 0.01 * ns
-        if curUp ~= scaledUp then
-            pcall(states.recoil_up.set, states.recoil_up, scaledUp)
-        end
-        if curSide ~= scaledSide then
-            pcall(states.recoil_side.set, states.recoil_side, scaledSide)
-        end
-    end)
+local function getGunMod()
+    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
+    return s and m
 end
 
-local function rcStopLoop()
-    if rcHb then
-        rcHb:Disconnect()
-        rcHb = nil
+local function makeRecoilHook()
+    return function(p1, p2)
+        if recoilHooked and p1 and p1.states then
+            if not rcBaseValues[p1] then
+                rcBaseValues[p1] = {
+                    up = p1.states.recoil_up:get(),
+                    side = p1.states.recoil_side:get()
+                }
+            end
+            local base = rcBaseValues[p1]
+            local ns = getgenv()._op1_ns_recoil and 0 or 1
+            local mulV = recoilMultV * 0.01 * ns
+            local mulH = recoilMultH * 0.01 * ns
+            if mulV <= 0 and mulH <= 0 then return end
+            p1.states.recoil_up:set(base.up * mulV)
+            p1.states.recoil_side:set(base.side * mulH)
+        end
+        return origRecoilFn(p1, p2)
     end
+end
+
+local function patchExistingOvs()
+    local s, items = pcall(require, ReplicatedStorage.Modules.Items)
+    if not s or not items then return end
+    local hook = makeRecoilHook()
+    for inst, item in pairs(items.items) do
+        if item and item.recoil and type(item.recoil) == "table" then
+            local ov = item.recoil
+            if ov.func then
+                origRecoilFn = origRecoilFn or ov.func
+                ov.func = hook
+            end
+        end
+    end
+end
+
+local function hookRecoilFn()
+    if recoilFnHookedMod then return end
+    local mod = getGunMod()
+    if not mod then return end
+    origRecoilFn = mod.recoil_function
+    mod.recoil_function = makeRecoilHook()
+    recoilFnHookedMod = mod
+    patchExistingOvs()
+end
+
+local function unhookRecoilFn()
+    if recoilFnHookedMod and origRecoilFn then
+        recoilFnHookedMod.recoil_function = origRecoilFn
+    end
+    recoilFnHookedMod = nil
+    origRecoilFn = nil
 end
 
 local function enableRecoilControl()
     if recoilHooked then return end
     recoilHooked = true
-    rcForceLoop()
+    hookRecoilFn()
     Library:Notify("Recoil Control enabled", 2)
 end
 
 local function disableRecoilControl()
     recoilHooked = false
-    rcStopLoop()
+    unhookRecoilFn()
     rcBaseValues = {}
     Library:Notify("Recoil Control disabled", 2)
 end
