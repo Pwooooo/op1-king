@@ -626,6 +626,17 @@ TracerGroup:AddSlider("TracerWidth", {
 
 TracerGroup:AddDivider()
 
+TracerGroup:AddColorPicker("TracerColor", {
+    Text = "Tracer Color",
+    Default = Color3.fromRGB(255, 200, 50),
+    Tooltip = "Color of the tracer beam",
+    Callback = function(color)
+        tracerColor = color
+    end,
+})
+
+TracerGroup:AddDivider()
+
 TracerGroup:AddButton({
     Text = "Toggle",
     Func = function()
