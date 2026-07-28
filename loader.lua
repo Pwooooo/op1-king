@@ -473,63 +473,52 @@ local function enableRecoilControl()
         Library:Notify("Recoil Control: failed to load Gun module", 3)
         return
     end
-    -- Use the shared original recoil_function (saved by No Screen Shake if enabled), otherwise get current
-    -- Save a shared reference to the real original so other features can reference it
+
     if not getgenv()._op1_recoil_orig then
         getgenv()._op1_recoil_orig = mod.recoil_function
     end
-    origRecoilFunc_RC = getgenv()._op1_recoil_orig
-    mod.recoil_function = function(p1, p2)
+    local origModuleFunc = getgenv()._op1_recoil_orig
+
+    local function recoilWrapper(p1, p2)
         if not recoilHooked or not p1 or not p1.states then
-            return origRecoilFunc_RC(p1, p2)
+            return origModuleFunc(p1, p2)
         end
-        local origUp = p1.states.recoil_up:get()
-        local origSide = p1.states.recoil_side:get()
-        local nsOverride = getgenv()._op1_ns_recoil and 0 or 1
-        p1.states.recoil_up:set(origUp * recoilMultV * 0.01 * nsOverride)
-        p1.states.recoil_side:set(origSide * recoilMultH * 0.01 * nsOverride)
-        origRecoilFunc_RC(p1, p2)
-        p1.states.recoil_up:set(origUp)
-        p1.states.recoil_side:set(origSide)
+        local u = p1.states.recoil_up:get()
+        local s = p1.states.recoil_side:get()
+        local ns = getgenv()._op1_ns_recoil and 0 or 1
+        p1.states.recoil_up:set(u * recoilMultV * 0.01 * ns)
+        p1.states.recoil_side:set(s * recoilMultH * 0.01 * ns)
+        origModuleFunc(p1, p2)
+        p1.states.recoil_up:set(u)
+        p1.states.recoil_side:set(s)
     end
-    -- Patch existing gun items too
+
+    mod.recoil_function = recoilWrapper
+
     local itemsMod = getItemsModule()
     if itemsMod then
         for _, item in pairs(itemsMod.items) do
-            if item and type(item.recoil) == "function" then
-                local orig = item.recoil
-                patchedItemsRC[item] = orig
-                item.recoil = function(p1, p2)
-                    if not recoilHooked or not p1 or not p1.states then
-                        return orig(p1, p2)
-                    end
-                    local u = p1.states.recoil_up:get()
-                    local s = p1.states.recoil_side:get()
-                    local ns = getgenv()._op1_ns_recoil and 0 or 1
-                    p1.states.recoil_up:set(u * recoilMultV * 0.01 * ns)
-                    p1.states.recoil_side:set(s * recoilMultH * 0.01 * ns)
-                    orig(p1, p2)
-                    p1.states.recoil_up:set(u)
-                    p1.states.recoil_side:set(s)
-                end
+            if item and item.recoil and type(item.recoil) == "table" and item.recoil.func then
+                patchedItemsRC[item] = item.recoil.func
+                item.recoil.func = recoilWrapper
             end
         end
     end
+
+    origRecoilFunc_RC = origModuleFunc
     recoilHooked = true
-    getgenv()._op1_recoil_active = true
     Library:Notify("Recoil Control enabled", 2)
 end
 
 local function disableRecoilControl()
     if not recoilHooked then return end
-    getgenv()._op1_recoil_active = false
     local mod = getGunModuleRC()
     if mod and origRecoilFunc_RC then
         mod.recoil_function = origRecoilFunc_RC
     end
-    for item, orig in pairs(patchedItemsRC) do
+    for item, origFunc in pairs(patchedItemsRC) do
         if item and item.recoil then
-            item.recoil = orig
+            item.recoil.func = origFunc
         end
     end
     patchedItemsRC = {}
@@ -765,6 +754,7 @@ local noShakeHooked = false
 local windShakePaused = false
 local bobHb = nil
 local nsRecoilThread = nil
+local nsCharMod = nil
 
 local function getItemsModule()
     local s, m = pcall(require, ReplicatedStorage.Modules.Items)
@@ -795,9 +785,7 @@ end
 local function noopBobbing()
     if bobHb then return end
     bobHb = game:GetService("RunService").Heartbeat:Connect(function()
-        local s, charMod = pcall(require, game.ReplicatedStorage.Modules.Character)
-        if not s then return end
-        local ok, char = pcall(charMod.get_char)
+        local ok, char = pcall(nsCharMod.get_char)
         if not ok or not char or not char.values then return end
         local bob = char.values.bob_cframe
         if bob and type(bob) == "table" and bob.Value then
@@ -817,13 +805,14 @@ local function enableNoShake()
     if noShakeHooked then return end
     noShakeHooked = true
     getgenv()._op1_ns_recoil = true
+    local ok, cm = pcall(require, game.ReplicatedStorage.Modules.Character)
+    if ok then nsCharMod = cm end
     nsRecoilThread = task.spawn(function()
         while noShakeHooked do
-            local ok, charMod = pcall(require, game.ReplicatedStorage.Modules.Character)
-            if ok then
-                local got, char = pcall(charMod.get_char)
-                if got and char then
-                    local gun = char.curr_gun
+            if nsCharMod then
+                local got, char = pcall(nsCharMod.get_char)
+                if got and char and char.values then
+                    local gun = char.values.equipped
                     if gun and gun.states then
                         pcall(gun.states.recoil_up.set, gun.states.recoil_up, 0)
                         pcall(gun.states.recoil_side.set, gun.states.recoil_side, 0)
