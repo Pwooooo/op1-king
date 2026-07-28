@@ -22,35 +22,114 @@ local BypassGroup = BypassTab:AddLeftGroupbox("Anti-Cheat Bypass")
 local InfoGroup = BypassTab:AddRightGroupbox("Information")
 
 local bypassHooked = false
-local oldByte = nil
-local bypassHeal = nil
+local origByte = nil
+local origChar = nil
+local origResetEnv = nil
+local healThread = nil
+
+local function stackSwap(level)
+    level = level or 3
+    local ok1, stack = pcall(getstack, level, 1)
+    if ok1 and type(stack) == "table" and stack[2] then
+        stack[1] = stack[2]
+        stack[5] = #stack[2]
+        pcall(setstack, level, 4, stack[5])
+        return stack[1]
+    end
+    return nil
+end
+
+local function applyHooks()
+    if not bypassHooked then return end
+
+    -- Hook string.byte (stack swap on JSON-like strings)
+    local s1, v1 = pcall(hookfunction, string.byte, newcclosure(function(s, i)
+        if checkcaller() or type(s) ~= 'string' or not (s:sub(1, 1) == '{' and s:sub(-1) == '}') then
+            return origByte(s, i)
+        end
+        local swapped = stackSwap()
+        return origByte(swapped or s, i)
+    end))
+    if s1 and not origByte then origByte = v1 end
+
+    -- Hook string.char
+    local s2, v2 = pcall(hookfunction, string.char, newcclosure(function(...)
+        if checkcaller() then
+            local args = {...}
+            if #args == 0 then return "" end
+            return origChar(unpack(args))
+        end
+        local ok1, stack = pcall(getstack, 3, 1)
+        if ok1 and type(stack) == "table" and stack[2] and type(stack[2]) == "string" and stack[2]:sub(1,1) == '{' then
+            local swapped = stackSwap()
+            if swapped then
+                return origChar(swapped:byte(1, #swapped))
+            end
+        end
+        return origChar(...)
+    end))
+    if s2 and not origChar then origChar = v2 end
+
+    -- Protect shared.extras.ResetEnv (called per-shot)
+    local ok3, extras = pcall(function() return shared.extras end)
+    if ok3 and type(extras) == "table" and type(extras.ResetEnv) == "function" then
+        local needWrap = false
+        if not origResetEnv then
+            origResetEnv = extras.ResetEnv
+            needWrap = true
+        elseif extras.ResetEnv ~= origResetEnv and extras.ResetEnv ~= nil then
+            origResetEnv = extras.ResetEnv
+            needWrap = true
+        end
+        if needWrap and origResetEnv then
+            local wrapped = newcclosure(function(...)
+                if bypassHooked then
+                    local results = {pcall(origResetEnv, ...)}
+                    task.spawn(function()
+                        task.wait(0.1)
+                        applyHooks()
+                    end)
+                    return unpack(results, 1, table.maxn(results))
+                end
+                return origResetEnv(...)
+            end)
+            pcall(hookfunction, extras.ResetEnv, wrapped)
+            extras.ResetEnv = wrapped
+        end
+    end
+end
 
 local function enableBypass()
     if bypassHooked then return end
-
-    local ok, hook = pcall(hookfunction, string.byte, newcclosure(function(a0, a1)
-        local cOk, isCaller = pcall(checkcaller)
-        if (cOk and isCaller) or type(a0) ~= 'string' or not (a0:sub(1, 1) == '{' and a0:sub(-1) == '}') then
-            return oldByte(a0, a1)
-        end
-
-        local ok1, luraph = pcall(getstack, 3, 1)
-        if ok1 and type(luraph) == "table" and luraph[2] then
-            luraph[1] = luraph[2]
-            luraph[5] = #luraph[2]
-            pcall(setstack, 3, 4, luraph[5])
-            return oldByte(luraph[1], a1)
-        end
-        return oldByte(a0, a1)
-    end))
-
-    if not ok then
-        Library:Notify("Bypass failed to hook", 3)
-        return
-    end
-
-    oldByte = hook
     bypassHooked = true
+
+    applyHooks()
+
+    -- Self-healing: verify hooks every 3s, reapply if missing
+    healThread = task.spawn(function()
+        while bypassHooked do
+            task.wait(3)
+            if not bypassHooked then break end
+            local s1, r1 = pcall(string.byte, "test", 1)
+            if s1 and r1 ~= 116 then
+                pcall(hookfunction, string.byte, newcclosure(function(s, i)
+                    if checkcaller() or type(s) ~= 'string' or not (s:sub(1, 1) == '{' and s:sub(-1) == '}') then
+                        return origByte(s, i)
+                    end
+                    local swapped = stackSwap()
+                    return origByte(swapped or s, i)
+                end))
+            end
+            local s2, r2 = pcall(string.char, 116)
+            if s2 and r2 ~= "t" then
+                pcall(hookfunction, string.char, newcclosure(function(...)
+                    if checkcaller() then return origChar(...) end
+                    return origChar(...)
+                end))
+            end
+        end
+    end)
+
     StatusLabel:SetText("Bypass: Enabled")
     BypassToggle:SetValue(true)
     Library:Notify("Bypass enabled", 2)
@@ -58,12 +137,22 @@ end
 
 local function disableBypass()
     bypassHooked = false
-    if oldByte then
-        pcall(hookfunction, string.byte, oldByte)
-        oldByte = nil
+    if healThread then task.cancel(healThread); healThread = nil end
+    if origByte then pcall(hookfunction, string.byte, origByte); origByte = nil end
+    if origChar then pcall(hookfunction, string.char, origChar); origChar = nil end
+    if origResetEnv then
+        pcall(function()
+            local e = shared.extras
+            if e and type(e) == "table" and type(origResetEnv) == "function" then
+                pcall(hookfunction, e.ResetEnv, origResetEnv)
+                e.ResetEnv = origResetEnv
+            end
+        end)
+        origResetEnv = nil
     end
     StatusLabel:SetText("Bypass: Disabled")
     BypassToggle:SetValue(false)
+    Library:Notify("Bypass disabled", 2)
 end
 
 local StatusLabel = BypassGroup:AddLabel("Bypass: Disabled")
@@ -71,7 +160,7 @@ local StatusLabel = BypassGroup:AddLabel("Bypass: Disabled")
 local BypassToggle = BypassGroup:AddToggle("BypassToggle", {
     Text = "Enable Bypass",
     Default = false,
-    Tooltip = "Hooks string.byte to swap stack data on anti-cheat checks",
+    Tooltip = "Hooks string.byte, string.char, protects shared.extras.ResetEnv, 3s self-healing",
     Callback = function(v)
         if v then enableBypass() else disableBypass() end
     end,
@@ -94,212 +183,172 @@ BypassGroup:AddButton({
     end,
 })
 
-InfoGroup:AddLabel("Hooks string.byte to swap stack data on anti-cheat checks.", true)
+InfoGroup:AddLabel("Hooks string.byte and string.char with stack swap. Protects shared.extras.ResetEnv. Auto-heals every 3s.", true)
 InfoGroup:AddDivider()
 InfoGroup:AddLabel("Keep OFF by default. Enable only when needed.", true)
 
--- No Spread
+-- No Spread (hooks Gun.send_shoot to zero spread state)
 
 local SpreadGroup = CombatTab:AddLeftGroupbox("No Spread")
 local SpreadInfo = CombatTab:AddRightGroupbox("Info")
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
 
-local spreadConn = nil
-local spreadActive = false
-local spreadIntensity = 100
+local gunModuleSp = nil
+local oldSendShoot = nil
+local noSpreadHooked = false
 
-local spreadProps = {"Spread", "BulletSpread", "Accuracy", "Inaccuracy", "SpreadRadius", "MaxSpread", "MinSpread", "ShotSpread", "SpreadAngle", "Deviation", "Randomness"}
+local function getGunModule()
+    if gunModuleSp then return gunModuleSp end
+    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
+    if s then gunModuleSp = m end
+    return gunModuleSp
+end
 
-local function scanForSpread(obj)
-    local results = {}
-    local function recurse(o, depth)
-        if depth > 10 then return end
-        for _, prop in ipairs(spreadProps) do
-            local s, v = pcall(function() return o[prop] end)
-            if s and v ~= nil then
-                table.insert(results, { obj = o, prop = prop, val = v })
-            end
-        end
-        for _, child in ipairs(o:GetChildren()) do
-            recurse(child, depth + 1)
-        end
+local function enableNoSpread()
+    if noSpreadHooked then return end
+    local mod = getGunModule()
+    if not mod then
+        Library:Notify("No Spread: failed to load Gun module", 3)
+        return
     end
-    recurse(obj, 0)
-    return results
-end
-
-local function applyNoSpread()
-    spreadActive = true
-    if spreadConn then return end
-
-    spreadConn = RunService.Heartbeat:Connect(function()
-        if not spreadActive then return end
-
-        local char = LocalPlayer.Character
-        if not char then return end
-
-        local backpack = LocalPlayer:FindFirstChild("Backpack") or LocalPlayer:WaitForChild("Backpack", 0.1)
-
-        for _, scope in ipairs({char, backpack, Players}) do
-            if not scope then continue end
-            local found = scanForSpread(scope)
-            for _, entry in ipairs(found) do
-                local newVal = entry.val * (1 - spreadIntensity / 100)
-                pcall(function() entry.obj[entry.prop] = newVal end)
-            end
+    oldSendShoot = mod.send_shoot
+    mod.send_shoot = function(p1, ...)
+        if noSpreadHooked and p1 and p1.states and p1.states.spread then
+            local orig = p1.states.spread:get()
+            p1.states.spread:set(0)
+            oldSendShoot(p1, ...)
+            p1.states.spread:set(orig)
+            return
         end
-    end)
+        return oldSendShoot(p1, ...)
+    end
+    noSpreadHooked = true
+    Library:Notify("No Spread enabled", 2)
 end
 
-local function stopNoSpread()
-    spreadActive = false
-    if spreadConn then spreadConn:Disconnect(); spreadConn = nil end
+local function disableNoSpread()
+    if not noSpreadHooked then return end
+    local mod = getGunModule()
+    if mod and oldSendShoot then
+        mod.send_shoot = oldSendShoot
+    end
+    oldSendShoot = nil
+    noSpreadHooked = false
+    Library:Notify("No Spread disabled", 2)
 end
 
 SpreadGroup:AddToggle("NoSpreadToggle", {
     Text = "No Spread",
     Default = false,
-    Tooltip = "Scans character, backpack, and Players for spread properties and zeros them",
+    Tooltip = "Hooks Gun.send_shoot to zero spread state before firing",
     Callback = function(v)
-        if v then applyNoSpread() else stopNoSpread() end
-    end,
-})
-
-SpreadGroup:AddDivider()
-
-SpreadGroup:AddSlider("SpreadIntensity", {
-    Text = "Intensity",
-    Default = 100,
-    Min = 0,
-    Max = 100,
-    Rounding = 1,
-    Suffix = "%",
-    Tooltip = "How much spread to remove",
-    Callback = function(v)
-        spreadIntensity = v
+        if v then enableNoSpread() else disableNoSpread() end
     end,
 })
 
 SpreadGroup:AddDivider()
 
 SpreadGroup:AddButton({
-    Text = "Scan for Spread",
-    Tooltip = "Find spread properties on your character and tools",
+    Text = "Toggle",
     Func = function()
-        local char = LocalPlayer.Character
-        if not char then Library:Notify("No character", 2) return end
-        local total = 0
-        local function scan(o, depth)
-            if depth > 8 then return end
-            for _, prop in ipairs(spreadProps) do
-                local s, v = pcall(function() return o[prop] end)
-                if s and v ~= nil then
-                    total = total + 1
-                end
-            end
-            for _, child in ipairs(o:GetChildren()) do
-                scan(child, depth + 1)
-            end
-        end
-        scan(char, 0)
-        local bp = LocalPlayer:FindFirstChild("Backpack")
-        if bp then scan(bp, 0) end
-        Library:Notify("Found " .. total .. " spread props", 3)
+        if noSpreadHooked then disableNoSpread() else enableNoSpread() end
     end,
 })
 
 SpreadGroup:AddButton({
     Text = "Reset",
     Func = function()
-        stopNoSpread()
-        Toggles.NoSpreadToggle:SetValue(false)
+        disableNoSpread()
         Library:Notify("No Spread reset", 2)
     end,
 })
 
-SpreadInfo:AddLabel("Scans character, backpack, and all children recursively for spread-related properties and zeros them every frame.", true)
+SpreadInfo:AddLabel("Hooks Gun.send_shoot to set p1.states.spread to 0 before the spread calculation, then restores it after.", true)
 SpreadInfo:AddDivider()
-SpreadInfo:AddLabel("Works with any character type. Not guaranteed in all games.", true)
+SpreadInfo:AddLabel("Works with OP1's client-sided hitscan. Zero spread = bullets go exactly where aimed.", true)
 
--- Bullet TP
+-- Bullet TP (hooks Gun.get_shoot_look to redirect aim to nearest enemy)
 
 local BulletTPGroup = CombatTab:AddLeftGroupbox("Bullet TP")
 
-local bulletTPConn = nil
-local bulletTPActive = false
-local handledBullets = {}
-local bulletTpCooldown = 0
+local gunModuleBt = nil
+local oldGetShootLook = nil
+local bulletTPHooked = false
 
-local function getTargetPart()
-    local myPos = LocalPlayer.Character and LocalPlayer.Character:GetPivot().p
-    if not myPos then return nil end
-    local closest, closestDist = nil, math.huge
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        local char = player.Character
-        if not char then continue end
-        local head = char:FindFirstChild("Head") or char:FindFirstChildOfClass("BasePart")
-        if not head then continue end
-        local dist = (head.Position - myPos).Magnitude
-        if dist < closestDist then
-            closest = head
-            closestDist = dist
+local function findNearestEnemy()
+    local char = Players.LocalPlayer.Character
+    if not char then return nil end
+    local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+    if not root then return nil end
+    local nearest, nearestDist = nil, math.huge
+    for _, player in pairs(Players:GetPlayers()) do
+        if player == Players.LocalPlayer then continue end
+        local tChar = player.Character
+        if not tChar then continue end
+        local hum = tChar:FindFirstChild("Humanoid")
+        if not hum or hum.Health <= 0 then continue end
+        local tRoot = tChar:FindFirstChild("HumanoidRootPart") or tChar:FindFirstChild("Torso")
+        if not tRoot then continue end
+        local dist = (root.Position - tRoot.Position).Magnitude
+        if dist < nearestDist then
+            nearestDist = dist
+            nearest = tChar
         end
     end
-    return closest
+    return nearest
+end
+
+local function getGunModuleBT()
+    if gunModuleBt then return gunModuleBt end
+    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
+    if s then gunModuleBt = m end
+    return gunModuleBt
 end
 
 local function enableBulletTP()
-    if bulletTPActive then return end
-    bulletTPActive = true
-    handledBullets = {}
-
-    bulletTPConn = RunService.Heartbeat:Connect(function()
-        if not bulletTPActive or not Toggles.BulletTPToggle.Value then return end
-
-        local char = LocalPlayer.Character
-        if not char then return end
-        local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildOfClass("BasePart")
-        if not root then return end
-
-        local target = getTargetPart()
-        if not target then return end
-
-        bulletTpCooldown = bulletTpCooldown + 1
-        if bulletTpCooldown % 3 ~= 0 then return end
-
-        for _, v in ipairs(workspace:GetChildren()) do
-            if v:IsA("BasePart") and not handledBullets[v] then
-                local dist = (v.Position - root.Position).Magnitude
-                local vel = math.max(v.Velocity.Magnitude, v.AssemblyLinearVelocity.Magnitude)
-                if dist < 80 and vel > 20 then
-                    handledBullets[v] = true
-                    v.CFrame = target.CFrame
-                    v.Velocity = (target.Position - v.Position).Unit * math.max(v.Velocity.Magnitude, 100)
+    if bulletTPHooked then return end
+    local mod = getGunModuleBT()
+    if not mod then
+        Library:Notify("Bullet TP: failed to load Gun module", 3)
+        return
+    end
+    oldGetShootLook = mod.get_shoot_look
+    mod.get_shoot_look = function(p1)
+        if bulletTPHooked then
+            local nearest = findNearestEnemy()
+            if nearest then
+                local head = nearest:FindFirstChild("Head") or nearest:FindFirstChildOfClass("BasePart")
+                if head then
+                    local cam = workspace.CurrentCamera
+                    if cam then
+                        return CFrame.lookAt(cam.CFrame.Position, head.Position)
+                    end
                 end
             end
         end
-
-        for b in pairs(handledBullets) do
-            if not b.Parent then handledBullets[b] = nil end
-            if #handledBullets > 500 then handledBullets = {} end
-        end
-    end)
+        return oldGetShootLook(p1)
+    end
+    bulletTPHooked = true
+    Library:Notify("Bullet TP enabled", 2)
 end
 
 local function disableBulletTP()
-    bulletTPActive = false
-    handledBullets = {}
-    if bulletTPConn then bulletTPConn:Disconnect(); bulletTPConn = nil end
+    if not bulletTPHooked then return end
+    local mod = getGunModuleBT()
+    if mod and oldGetShootLook then
+        mod.get_shoot_look = oldGetShootLook
+    end
+    oldGetShootLook = nil
+    bulletTPHooked = false
+    Library:Notify("Bullet TP disabled", 2)
 end
 
 BulletTPGroup:AddToggle("BulletTPToggle", {
     Text = "Bullet TP",
     Default = false,
-    Tooltip = "Teleports nearby high-velocity parts to the nearest enemy",
+    Tooltip = "Hooks Gun.get_shoot_look to redirect bullet direction to nearest enemy",
     Callback = function(v)
         if v then enableBulletTP() else disableBulletTP() end
     end,
@@ -307,7 +356,16 @@ BulletTPGroup:AddToggle("BulletTPToggle", {
 
 BulletTPGroup:AddDivider()
 
-BulletTPGroup:AddLabel("Checks workspace parts within 80 studs moving faster than 20 velocity. Only processes every 3 frames.", true)
+BulletTPGroup:AddButton({
+    Text = "Toggle",
+    Func = function()
+        if bulletTPHooked then disableBulletTP() else enableBulletTP() end
+    end,
+})
+
+BulletTPGroup:AddDivider()
+
+BulletTPGroup:AddLabel("Hooks Gun.get_shoot_look to return a CFrame pointing at the nearest enemy's head. Works with OP1's client-sided hitscan.", true)
 
 Library:SetWatermark("OP1 King")
 
