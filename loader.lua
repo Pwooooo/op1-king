@@ -61,7 +61,7 @@ do
 
     local BypassToggle = Tabs.Main:AddToggle("BypassToggle", {
         Title = "Enable Bypass",
-        Default = true,
+        Default = false,
         Description = "Toggle the anti-cheat bypass on/off"
     })
 
@@ -121,10 +121,8 @@ Window:SelectTab(1)
 
 Fluent:Notify({
     Title = "OP1 King",
-    Content = "Loaded. Bypass is ON by default.",
+    Content = "Loaded.",
     Duration = 5
 })
 
 SaveManager:LoadAutoloadConfig()
-
-Options.BypassToggle:SetValue(true)
