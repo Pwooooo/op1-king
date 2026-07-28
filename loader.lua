@@ -484,7 +484,7 @@ end
 RecoilGroup:AddToggle("RecoilToggle", {
     Text = "Recoil Macro",
     Default = false,
-    Tooltip = "Patches gun recoil function + sends mousemoverel pull-down while shooting.",
+    Tooltip = "Hooks UIS:GetMouseDelta to add counter-pull while mouse1 is held. 0 fly, no game internals.",
     Callback = function(v)
         if v then macroEnable() else macroDisable() end
     end,
