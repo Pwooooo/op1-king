@@ -935,6 +935,19 @@ SaveManager:SetFolder("OP1King/configs")
 ThemeManager:SetFolder("OP1King")
 
 SaveManager:BuildConfigSection(ConfigTab)
+
+local ConfigInfo = ConfigTab:AddLeftGroupbox("Config Info")
+ConfigInfo:AddLabel("Save and load your settings from the Configuration panel on the right.", true)
+ConfigInfo:AddDivider()
+ConfigInfo:AddButton({
+    Text = "Refresh Config List",
+    Func = function()
+        Options.SaveManager_ConfigList:SetValues(SaveManager:RefreshConfigList())
+        Options.SaveManager_ConfigList:SetValue(nil)
+        Library:Notify("Config list refreshed", 2)
+    end,
+})
+
 ThemeManager:ApplyToTab(SettingsTab)
 
 Window:SelectTab(1)
