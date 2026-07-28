@@ -448,64 +448,37 @@ SilentAimGroup:AddButton({
     end,
 })
 
--- Recoil Macro (patches gun recoil ov.func + mousemoverel pull-down)
+-- Recoil Macro (hooks UIS:GetMouseDelta to inject counter-pull while shooting)
 
 local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Macro")
 
 local recoilActive = false
 local recoilPullV = 15
 local recoilPullH = 0
-local recoilPullThread = nil
-
-local function patchRecoil(item)
-    if not item then return end
-    local ov = item.recoil
-    if ov and type(ov) == "table" and type(ov.func) == "function" and not ov._rcPatched then
-        ov.func = function() end
-        ov._rcPatched = true
-    end
-end
-
-local function applyPatches()
-    local s, items = pcall(require, ReplicatedStorage.Modules.Items)
-    if not s or not items then return end
-    for _, item in pairs(items.items) do
-        patchRecoil(item)
-    end
-    -- hook create_item for future guns
-    if type(items.create_item) == "function" and not items._rcHookedCreate then
-        local orig = items.create_item
-        items.create_item = function(inst)
-            local result = orig(inst)
-            patchRecoil(result)
-            return result
-        end
-        items._rcHookedCreate = true
-    end
-end
-
-local function macroLoop()
-    while recoilActive do
-        task.wait()
-        if game:GetService("UserInputService"):IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-            pcall(function()
-                game:GetService("VirtualInputManager"):SendMouseMoveRelative(recoilPullH, recoilPullV, workspace)
-            end)
-        end
-    end
-end
+local oldNamecall = nil
+local UIS = game:GetService("UserInputService")
 
 local function macroEnable()
     if recoilActive then return end
     recoilActive = true
-    applyPatches()
-    recoilPullThread = task.spawn(macroLoop)
+    if not oldNamecall then
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if recoilActive and method == "GetMouseDelta" and self == UIS then
+                local delta = oldNamecall(self, ...)
+                if self:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+                    return Vector2.new(delta.X + recoilPullH, delta.Y + recoilPullV)
+                end
+                return delta
+            end
+            return oldNamecall(self, ...)
+        end)
+    end
     Library:Notify("Recoil Macro enabled", 2)
 end
 
 local function macroDisable()
     recoilActive = false
-    if recoilPullThread then task.cancel(recoilPullThread); recoilPullThread = nil end
     Library:Notify("Recoil Macro disabled", 2)
 end
 RecoilGroup:AddToggle("RecoilToggle", {
