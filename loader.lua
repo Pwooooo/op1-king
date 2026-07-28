@@ -14,6 +14,7 @@ local Window = Library:CreateWindow({
 
 local BypassTab = Window:AddTab("Bypass")
 local CombatTab = Window:AddTab("Combat")
+local VisualTab = Window:AddTab("Visual")
 local SettingsTab = Window:AddTab("Settings")
 
 -- Anti-Cheat Bypass
@@ -467,6 +468,174 @@ SilentAimGroup:AddButton({
 SilentAimGroup:AddDivider()
 
 SilentAimGroup:AddLabel("Hooks Gun.ray_damage to redirect the hitscan direction to the nearest enemy within FOV. Visual firing direction stays unchanged.", true)
+
+-- No Gun Movement (hooks Gun.running to prevent weapon movement while moving)
+
+local NoMoveGroup = VisualTab:AddLeftGroupbox("No Gun Movement")
+
+local gunModuleNm = nil
+local oldRunning = nil
+local noMoveHooked = false
+
+local function getGunModuleNM()
+    if gunModuleNm then return gunModuleNm end
+    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
+    if s then gunModuleNm = m end
+    return gunModuleNm
+end
+
+local function enableNoMove()
+    if noMoveHooked then return end
+    local mod = getGunModuleNM()
+    if not mod then
+        Library:Notify("No Move: failed to load Gun module", 3)
+        return
+    end
+    oldRunning = mod.running
+    mod.running = function(p1, p2, p3)
+        if noMoveHooked then
+            return
+        end
+        return oldRunning(p1, p2, p3)
+    end
+    noMoveHooked = true
+    Library:Notify("No Gun Movement enabled", 2)
+end
+
+local function disableNoMove()
+    if not noMoveHooked then return end
+    local mod = getGunModuleNM()
+    if mod and oldRunning then
+        mod.running = oldRunning
+    end
+    oldRunning = nil
+    noMoveHooked = false
+    Library:Notify("No Gun Movement disabled", 2)
+end
+
+NoMoveGroup:AddToggle("NoMoveToggle", {
+    Text = "No Gun Movement",
+    Default = false,
+    Tooltip = "Hooks Gun.running to prevent weapon animation while moving",
+    Callback = function(v)
+        if v then enableNoMove() else disableNoMove() end
+    end,
+})
+
+NoMoveGroup:AddDivider()
+
+NoMoveGroup:AddButton({
+    Text = "Toggle",
+    Func = function()
+        if noMoveHooked then disableNoMove() else enableNoMove() end
+    end,
+})
+
+NoMoveGroup:AddDivider()
+
+NoMoveGroup:AddLabel("Hooks Gun.running to skip the running animation loop, preventing weapon movement while moving. Recoil is unaffected.", true)
+
+-- Bullet Tracers (hooks Gun.trail to create highly visible beam tracers)
+
+local TracerGroup = VisualTab:AddLeftGroupbox("Bullet Tracers")
+
+local gunModuleTr = nil
+local oldTrail = nil
+local tracerHooked = false
+local tracerWidth = 0.5
+local tracerColor = Color3.fromRGB(255, 200, 50)
+
+local function getGunModuleTR()
+    if gunModuleTr then return gunModuleTr end
+    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
+    if s then gunModuleTr = m end
+    return gunModuleTr
+end
+
+local function enableTracers()
+    if tracerHooked then return end
+    local mod = getGunModuleTR()
+    if not mod then
+        Library:Notify("Tracers: failed to load Gun module", 3)
+        return
+    end
+    oldTrail = mod.trail
+    mod.trail = function(p1, startPos, endPos, p4)
+        if tracerHooked and startPos and endPos then
+            local beam = Instance.new("Beam")
+            local a1 = Instance.new("Attachment")
+            local a2 = Instance.new("Attachment")
+            a1.Parent = workspace.Terrain
+            a2.Parent = workspace.Terrain
+            a1.Position = startPos
+            a2.Position = endPos
+            beam.Parent = workspace
+            beam.Attachment0 = a1
+            beam.Attachment1 = a2
+            beam.Width0 = tracerWidth
+            beam.Width1 = tracerWidth
+            beam.Color = ColorSequence.new(tracerColor)
+            beam.Transparency = NumberSequence.new(0)
+            beam.FaceCamera = true
+            game:GetService("Debris"):AddItem(beam, 0.15)
+            game:GetService("Debris"):AddItem(a1, 0.15)
+            game:GetService("Debris"):AddItem(a2, 0.15)
+        end
+        if oldTrail then
+            return oldTrail(p1, startPos, endPos, p4)
+        end
+    end
+    tracerHooked = true
+    Library:Notify("Bullet Tracers enabled", 2)
+end
+
+local function disableTracers()
+    if not tracerHooked then return end
+    local mod = getGunModuleTR()
+    if mod and oldTrail then
+        mod.trail = oldTrail
+    end
+    oldTrail = nil
+    tracerHooked = false
+    Library:Notify("Bullet Tracers disabled", 2)
+end
+
+TracerGroup:AddToggle("TracerToggle", {
+    Text = "Bullet Tracers",
+    Default = false,
+    Tooltip = "Hooks Gun.trail to create visible beam tracers on each shot",
+    Callback = function(v)
+        if v then enableTracers() else disableTracers() end
+    end,
+})
+
+TracerGroup:AddDivider()
+
+TracerGroup:AddSlider("TracerWidth", {
+    Text = "Width",
+    Default = 0.5,
+    Min = 0.1,
+    Max = 3,
+    Rounding = 1,
+    Suffix = " studs",
+    Tooltip = "Width of the tracer beam",
+    Callback = function(v)
+        tracerWidth = v
+    end,
+})
+
+TracerGroup:AddDivider()
+
+TracerGroup:AddButton({
+    Text = "Toggle",
+    Func = function()
+        if tracerHooked then disableTracers() else enableTracers() end
+    end,
+})
+
+TracerGroup:AddDivider()
+
+TracerGroup:AddLabel("Hooks Gun.trail to create bright visible beam tracers from the shot origin to the hit point. The game's default subtle trails are replaced.", true)
 
 Library:SetWatermark("OP1 King")
 
