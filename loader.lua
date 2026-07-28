@@ -1,52 +1,43 @@
---[[
-    OP1 King - Anti-Cheat Bypass
-    LinoriaLib UI
-]]
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/SaveManager.lua"))()
-local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/ThemeManager.lua"))()
-
-getgenv().SaveManager = SaveManager
-getgenv().ThemeManager = ThemeManager
-
-local Window = Library:CreateWindow({
+local Window = Fluent:CreateWindow({
     Title = "OP1 King",
-    Center = true,
-    AutoShow = true,
-    Size = UDim2.fromOffset(550, 500),
+    SubTitle = "anti-cheat bypass + combat",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
 })
 
-local MainTab = Window:AddTab("Bypass")
-local CombatTab = Window:AddTab("Combat")
-local SettingsTab = Window:AddTab("Settings")
+local Tabs = {
+    Bypass = Window:AddTab({ Title = "Bypass", Icon = "shield" }),
+    Combat = Window:AddTab({ Title = "Combat", Icon = "crosshair" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+}
 
-local BypassGroup = MainTab:AddLeftGroupbox("Anti-Cheat Bypass")
-local InfoGroup = MainTab:AddRightGroupbox("Information")
-local StatusGroup = MainTab:AddLeftGroupbox("Status")
+local Options = Fluent.Options
+
+-- Anti-Cheat Bypass
 
 local bypassHooked = false
 local oldStrByte = nil
 
 local function enableBypass()
     if bypassHooked then return end
-
     oldStrByte = hookfunction(string.byte, newcclosure(function(a0, a1)
         if (checkcaller() or type(a0) ~= 'string' or not (a0:sub(1, 1) == '{' and a0:sub(-1) == '}')) then
             return oldStrByte(a0, a1)
         end
-
         local luraph = getstack(3, 1)
         luraph[1] = luraph[2]
         luraph[5] = #luraph[2]
         setstack(3, 4, luraph[5])
-
         return oldStrByte(luraph[1], a1)
     end))
-
     bypassHooked = true
-    StatusLabel:SetText("Bypass: Enabled")
-    BypassToggle:SetValue(true)
 end
 
 local function disableBypass()
@@ -54,202 +45,163 @@ local function disableBypass()
     hookfunction(string.byte, oldStrByte)
     oldStrByte = nil
     bypassHooked = false
-    StatusLabel:SetText("Bypass: Disabled")
-    BypassToggle:SetValue(false)
 end
 
-local StatusLabel = StatusGroup:AddLabel("Bypass: Disabled")
-StatusGroup:AddDivider()
+do
+    Tabs.Bypass:AddParagraph({
+        Title = "Anti-Cheat Bypass",
+        Content = "Hooks string.byte to swap stack data when the anti-cheat checks payload formatting."
+    })
 
-local BypassToggle = BypassGroup:AddToggle("BypassToggle", {
-    Text = "Enable Bypass",
-    Default = false,
-    Tooltip = "Hooks string.byte to swap stack data on anti-cheat checks",
-    Callback = function(v)
-        if v then
+    local BypassToggle = Tabs.Bypass:AddToggle("BypassToggle", {
+        Title = "Enable Bypass",
+        Default = false
+    })
+
+    BypassToggle:OnChanged(function()
+        if Options.BypassToggle.Value then
             enableBypass()
+            Fluent:Notify({ Title = "OP1 King", Content = "Bypass enabled.", Duration = 3 })
         else
             disableBypass()
+            Fluent:Notify({ Title = "OP1 King", Content = "Bypass disabled.", Duration = 3 })
         end
-    end,
-})
+    end)
 
-BypassGroup:AddDivider()
+    Tabs.Bypass:AddButton({
+        Title = "Enable Now",
+        Description = "Force-enable the bypass immediately",
+        Callback = function() Options.BypassToggle:SetValue(true) end
+    })
 
-BypassGroup:AddButton({
-    Text = "Enable Now",
-    Func = function()
-        enableBypass()
-        Library:Notify("Bypass enabled", 2)
-    end,
-})
+    Tabs.Bypass:AddButton({
+        Title = "Disable Now",
+        Description = "Force-disable the bypass immediately",
+        Callback = function() Options.BypassToggle:SetValue(false) end
+    })
 
-BypassGroup:AddButton({
-    Text = "Disable Now",
-    Func = function()
-        disableBypass()
-        Library:Notify("Bypass disabled", 2)
-    end,
-})
-
-BypassGroup:AddDivider()
-
-BypassGroup:AddButton({
-    Text = "Rejoin Server",
-    Func = function()
-        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, game.Players.LocalPlayer)
-    end,
-})
-
-InfoGroup:AddLabel("This bypass hooks string.byte to detect when the anti-cheat checks payload formatting and swaps the stack data to evade detection.", true)
-
-InfoGroup:AddDivider()
-
-InfoGroup:AddLabel("Toggle the bypass ON/OFF using the toggle above. ON by default is NOT recommended â€” enable only when needed.", true)
+    Tabs.Bypass:AddButton({
+        Title = "Rejoin Server",
+        Description = "Rejoin the current server",
+        Callback = function()
+            game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, game.Players.LocalPlayer)
+        end
+    })
+end
 
 -- No Spread
-
-local SpreadGroup = CombatTab:AddLeftGroupbox("No Spread")
-local SpreadInfo = CombatTab:AddRightGroupbox("Info")
-
-local function findSpreadProperties(tool)
-    local props = {"Spread", "BulletSpread", "Accuracy", "Inaccuracy", "SpreadRadius", "MaxSpread", "MinSpread", "ShotSpread", "SpreadAngle"}
-    for _, prop in ipairs(props) do
-        local success, val = pcall(function() return tool[prop] end)
-        if success and val ~= nil then
-            return prop, val
-        end
-    end
-    for _, child in ipairs(tool:GetDescendants()) do
-        for _, prop in ipairs(props) do
-            local success, val = pcall(function() return child[prop] end)
-            if success and val ~= nil then
-                return child, prop, val
-            end
-        end
-    end
-end
 
 local spreadConn = nil
 local spreadActive = false
 local spreadIntensity = 100
 
-local function applyNoSpread(intensity)
+local function findSpreadProperties(tool)
+    local props = {"Spread", "BulletSpread", "Accuracy", "Inaccuracy", "SpreadRadius", "MaxSpread", "MinSpread", "ShotSpread", "SpreadAngle"}
+    for _, prop in ipairs(props) do
+        local success, val = pcall(function() return tool[prop] end)
+        if success and val ~= nil then return prop, val end
+    end
+    for _, child in ipairs(tool:GetDescendants()) do
+        for _, prop in ipairs(props) do
+            local success, val = pcall(function() return child[prop] end)
+            if success and val ~= nil then return child, prop, val end
+        end
+    end
+end
+
+local function applyNoSpread()
     spreadActive = true
     if spreadConn then return end
-
     local player = game.Players.LocalPlayer
     if not player then return end
-
     spreadConn = game:GetService("RunService").Heartbeat:Connect(function()
         if not spreadActive then return end
-
         local char = player.Character
         if not char then return end
-
         local tool = char:FindFirstChildOfClass("Tool") or char:FindFirstChildOfClass("HopperBin")
         if not tool then return end
-
         local target, propName, origVal = findSpreadProperties(tool)
         if not target then return end
-
         local obj, prop = target, propName
-        if type(target) == "string" then
-            obj = tool
-            prop = target
-        end
-
-        local newVal = origVal * (1 - spreadIntensity / 100)
-        pcall(function() obj[prop] = newVal end)
+        if type(target) == "string" then obj = tool; prop = target end
+        pcall(function() obj[prop] = origVal * (1 - spreadIntensity / 100) end)
     end)
 end
 
 local function stopNoSpread()
     spreadActive = false
-    if spreadConn then
-        spreadConn:Disconnect()
-        spreadConn = nil
-    end
+    if spreadConn then spreadConn:Disconnect(); spreadConn = nil end
 end
 
-SpreadGroup:AddToggle("NoSpreadToggle", {
-    Text = "No Spread",
-    Default = false,
-    Tooltip = "Removes weapon bullet spread",
-    Callback = function(v)
-        if v then
-            applyNoSpread(spreadIntensity)
+do
+    Tabs.Combat:AddParagraph({
+        Title = "No Spread",
+        Content = "Removes weapon bullet spread by zeroing out spread properties every frame."
+    })
+
+    local NoSpreadToggle = Tabs.Combat:AddToggle("NoSpreadToggle", {
+        Title = "No Spread",
+        Default = false
+    })
+
+    NoSpreadToggle:OnChanged(function()
+        if Options.NoSpreadToggle.Value then
+            applyNoSpread()
         else
             stopNoSpread()
         end
-    end,
-})
+    end)
 
-SpreadGroup:AddDivider()
-
-local SpreadIntensitySlider = SpreadGroup:AddSlider("SpreadIntensity", {
-    Text = "Intensity",
-    Default = 100,
-    Min = 0,
-    Max = 100,
-    Rounding = 1,
-    Suffix = "%",
-    Tooltip = "How much spread to remove",
-    Callback = function(v)
-        spreadIntensity = v
-        if spreadActive then
-            applyNoSpread(v)
+    local IntensitySlider = Tabs.Combat:AddSlider("SpreadIntensity", {
+        Title = "Intensity",
+        Default = 100,
+        Min = 0,
+        Max = 100,
+        Rounding = 1,
+        Callback = function(v)
+            spreadIntensity = v
+            if spreadActive then applyNoSpread() end
         end
-    end,
-})
+    })
 
-SpreadGroup:AddDivider()
-
-SpreadGroup:AddButton({
-    Text = "Scan Tool",
-    Tooltip = "Print current tool's spread properties to console",
-    Func = function()
-        local char = game.Players.LocalPlayer and game.Players.LocalPlayer.Character
-        if not char then Library:Notify("No character", 2) return end
-        local tool = char:FindFirstChildOfClass("Tool")
-        if not tool then Library:Notify("No tool equipped", 2) return end
-        local target, prop, val = findSpreadProperties(tool)
-        if target then
-            local name = type(target) == "string" and target or target:GetFullName()
-            Library:Notify("Spread: " .. tostring(prop) .. " = " .. tostring(val), 4)
-        else
-            Library:Notify("No spread property found on tool", 3)
+    Tabs.Combat:AddButton({
+        Title = "Scan Tool",
+        Description = "Show current tool's spread property",
+        Callback = function()
+            local char = game.Players.LocalPlayer and game.Players.LocalPlayer.Character
+            if not char then Fluent:Notify({ Title = "OP1 King", Content = "No character", Duration = 2 }) return end
+            local tool = char:FindFirstChildOfClass("Tool")
+            if not tool then Fluent:Notify({ Title = "OP1 King", Content = "No tool equipped", Duration = 2 }) return end
+            local target, prop, val = findSpreadProperties(tool)
+            if target then
+                Fluent:Notify({ Title = "OP1 King", Content = "Spread property found: " .. tostring(prop) .. " = " .. tostring(val), Duration = 5 })
+            else
+                Fluent:Notify({ Title = "OP1 King", Content = "No spread property found on this tool", Duration = 3 })
+            end
         end
-    end,
-})
+    })
 
-SpreadGroup:AddButton({
-    Text = "Reset Spread",
-    Func = function()
-        stopNoSpread()
-        Toggles.NoSpreadToggle:SetValue(false)
-        Library:Notify("Spread reset", 2)
-    end,
-})
+    Tabs.Combat:AddButton({
+        Title = "Reset Spread",
+        Description = "Disable No Spread and restore defaults",
+        Callback = function()
+            stopNoSpread()
+            Options.NoSpreadToggle:SetValue(false)
+            Fluent:Notify({ Title = "OP1 King", Content = "Spread reset", Duration = 2 })
+        end
+    })
+end
 
-SpreadInfo:AddLabel("Scans your equipped tool for spread-related properties and zeros them out every frame.", true)
-
-SpreadInfo:AddDivider()
-
-SpreadInfo:AddLabel("Not all games use client-side spread properties. Some calculate spread server-side, in which case this won't work.", true)
-
-Library:SetWatermark("OP1 King")
-
-SaveManager:SetLibrary(Library)
-ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
-ThemeManager:SetIgnoreIndexes({})
+SaveManager:SetIgnoreIndexes({})
+InterfaceManager:SetFolder("OP1King")
 SaveManager:SetFolder("OP1King/configs")
-ThemeManager:SetFolder("OP1King")
-
-SaveManager:BuildConfigSection(SettingsTab)
-ThemeManager:ApplyToTab(SettingsTab)
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
 
-Library:Notify("OP1 King loaded. Bypass is OFF.", 4)
+Fluent:Notify({ Title = "OP1 King", Content = "Loaded. Bypass is OFF.", Duration = 5 })
+SaveManager:LoadAutoloadConfig()
