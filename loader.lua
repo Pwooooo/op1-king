@@ -405,6 +405,16 @@ ScanGroup:AddButton({
 ScanGroup:AddDivider()
 
 ScanGroup:AddButton({
+    Text = "Copy Output",
+    Tooltip = "Copy scan results to clipboard",
+    Func = function()
+        local text = scanOutput.TextLabel.Text
+        pcall(setclipboard, text)
+        Library:Notify("Copied to clipboard", 2)
+    end,
+})
+
+ScanGroup:AddButton({
     Text = "Clear Output",
     Func = function()
         scanOutput:SetText("Cleared. Run a scan.")
