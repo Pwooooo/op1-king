@@ -448,122 +448,91 @@ SilentAimGroup:AddButton({
     end,
 })
 
--- Recoil Control (hooks Gun.t.recoil_function + patches existing ovs)
+-- Recoil Control (BindToRenderStep at Camera.Value+1 — overrides camera.CFrame to cancel recoil)
 
 local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Control")
 
 local recoilHooked = false
 local recoilMultV = 100
 local recoilMultH = 100
-local origRecoilFn = nil
-local recoilFnHookedMod = nil
-local rcBaseValues = {}
+local rcSaveX = 0
+local rcSaveY = 0
+local rcFiring = false
 
-local function getGunMod()
-    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
-    return s and m
+local function rcSync()
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    local x, y = cam.CFrame:ToEulerAnglesYXZ()
+    rcSaveX, rcSaveY = x, y
 end
 
-local function makeRecoilHook()
-    return function(p1, p2)
-        if recoilHooked and p1 and p1.states then
-            if not rcBaseValues[p1] then
-                rcBaseValues[p1] = {
-                    up = p1.states.recoil_up:get(),
-                    side = p1.states.recoil_side:get()
-                }
-            end
-            local base = rcBaseValues[p1]
-            local ns = getgenv()._op1_ns_recoil and 0 or 1
-            local mulV = recoilMultV * 0.01 * ns
-            local mulH = recoilMultH * 0.01 * ns
-            if mulV <= 0 and mulH <= 0 then return end
-            p1.states.recoil_up:set(base.up * mulV)
-            p1.states.recoil_side:set(base.side * mulH)
-        end
-        return origRecoilFn(p1, p2)
-    end
-end
-
-local function patchExistingOvs()
-    local s, items = pcall(require, ReplicatedStorage.Modules.Items)
-    if not s or not items then return end
-    local hook = makeRecoilHook()
-    for inst, item in pairs(items.items) do
-        if item and item.recoil and type(item.recoil) == "table" then
-            local ov = item.recoil
-            if ov.func then
-                origRecoilFn = origRecoilFn or ov.func
-                ov.func = hook
-            end
-        end
-    end
-end
-
-local function hookRecoilFn()
-    if recoilFnHookedMod then return end
-    local mod = getGunMod()
-    if not mod then return end
-    origRecoilFn = mod.recoil_function
-    mod.recoil_function = makeRecoilHook()
-    recoilFnHookedMod = mod
-    patchExistingOvs()
-end
-
-local function unhookRecoilFn()
-    if recoilFnHookedMod and origRecoilFn then
-        recoilFnHookedMod.recoil_function = origRecoilFn
-    end
-    recoilFnHookedMod = nil
-    origRecoilFn = nil
-end
-
-local function enableRecoilControl()
+local function rcEnable()
     if recoilHooked then return end
     recoilHooked = true
-    hookRecoilFn()
+    rcSync()
+    game:GetService("RunService"):BindToRenderStep("OP1RC", Enum.RenderPriority.Camera.Value + 1, function()
+        if not recoilHooked then return end
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+        local lp = game:GetService("Players").LocalPlayer
+        local char = lp.Character
+        if not char or not char:FindFirstChildOfClass("Humanoid") or char.Humanoid.Health <= 0 then
+            rcSync(); return
+        end
+        local UIS = game:GetService("UserInputService")
+        if UIS.MouseBehavior == Enum.MouseBehavior.Default then rcSync(); return end
+        local delta = UIS:GetMouseDelta()
+        local _, _, realZ = cam.CFrame:ToEulerAnglesYXZ()
+        local flip = (cam.CFrame.UpVector.Y < 0) and -1 or 1
+        local mulV = recoilMultV * 0.01
+        local mulH = recoilMultH * 0.01
+        rcSaveY = rcSaveY - math.rad(delta.X * mulH * 0.48 * flip)
+        rcSaveX = rcSaveX - math.rad(delta.Y * mulV * 0.48)
+        rcSaveX = math.clamp(rcSaveX, math.rad(-85), math.rad(85))
+        cam.CFrame = CFrame.new(cam.CFrame.Position) * CFrame.fromEulerAnglesYXZ(rcSaveX, rcSaveY, realZ)
+        rcFiring = true
+    end)
     Library:Notify("Recoil Control enabled", 2)
 end
 
-local function disableRecoilControl()
+local function rcDisable()
     recoilHooked = false
-    unhookRecoilFn()
-    rcBaseValues = {}
+    game:GetService("RunService"):UnbindFromRenderStep("OP1RC")
     Library:Notify("Recoil Control disabled", 2)
 end
 
 RecoilGroup:AddToggle("RecoilToggle", {
     Text = "Recoil Control",
     Default = false,
-    Tooltip = "Scales vertical and horizontal recoil by the multiplier below",
+    Tooltip = "Overrides camera CFrame at Camera.Value+1 to eliminate recoil (BindToRenderStep)",
     Callback = function(v)
-        if v then enableRecoilControl() else disableRecoilControl() end
+        if v then rcEnable() else rcDisable() end
     end,
 })
 
 RecoilGroup:AddDivider()
 
 RecoilGroup:AddSlider("RecoilV", {
-    Text = "Vertical",
+    Text = "Vertical Sense",
     Default = 100,
     Min = 0,
     Max = 100,
     Rounding = 1,
     Suffix = "%",
-    Tooltip = "Vertical recoil (0 = none, 100 = default)",
+    Tooltip = "Mouse sensitivity while firing (100% = normal)",
     Callback = function(v)
         recoilMultV = v
     end,
 })
 
 RecoilGroup:AddSlider("RecoilH", {
-    Text = "Horizontal",
+    Text = "Horizontal Sense",
     Default = 100,
     Min = 0,
     Max = 100,
     Rounding = 1,
     Suffix = "%",
-    Tooltip = "Horizontal recoil (0 = none, 100 = default)",
+    Tooltip = "Mouse sensitivity while firing (100% = normal)",
     Callback = function(v)
         recoilMultH = v
     end,
@@ -574,7 +543,7 @@ RecoilGroup:AddDivider()
 RecoilGroup:AddButton({
     Text = "Toggle",
     Func = function()
-        if recoilHooked then disableRecoilControl() else enableRecoilControl() end
+        if recoilHooked then rcDisable() else rcEnable() end
     end,
 })
 
