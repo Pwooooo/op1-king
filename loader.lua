@@ -261,7 +261,7 @@ SpreadGroup:AddButton({
     end,
 })
 
-local BulletTPGroup = CombatTab:AddLeftGroupbox("Bullet TP")
+local BulletTPGroup = CombatTab:AddRightGroupbox("Bullet TP")
 
 local gunModuleBt = nil
 local oldGetShootLook = nil
@@ -353,7 +353,7 @@ BulletTPGroup:AddButton({
 
 -- Silent Aim (hooks ray_damage on Gun to redirect hitscan while keeping visual normal)
 
-local SilentAimGroup = CombatTab:AddLeftGroupbox("Silent Aim")
+local SilentAimGroup = CombatTab:AddRightGroupbox("Silent Aim")
 
 local gunModuleSa = nil
 local silentAimHooked = false
@@ -450,7 +450,7 @@ SilentAimGroup:AddButton({
 
 -- Recoil Control (hooks Gun.recoil_function to scale vertical/horizontal recoil)
 
-local RecoilGroup = CombatTab:AddLeftGroupbox("Recoil Control")
+local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Control")
 
 local gunModuleRc = nil
 local recoilHooked = false
