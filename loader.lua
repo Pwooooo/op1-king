@@ -24,18 +24,39 @@ local InfoGroup = BypassTab:AddRightGroupbox("Information")
 local bypassHooked = false
 local oldStrByte = nil
 
+local function safeGetStack(level, idx)
+    local s, v = pcall(getstack, level, idx)
+    if s and type(v) == "table" then return v end
+    return nil
+end
+
+local function safeSetStack(level, idx, val)
+    local s = pcall(setstack, level, idx, val)
+    return s
+end
+
 local function enableBypass()
     if bypassHooked then return end
-    oldStrByte = hookfunction(string.byte, newcclosure(function(a0, a1)
-        if (checkcaller() or type(a0) ~= 'string' or not (a0:sub(1, 1) == '{' and a0:sub(-1) == '}')) then
+    local ok, hook = pcall(hookfunction, string.byte, newcclosure(function(a0, a1)
+        local okCaller, isCaller = pcall(checkcaller)
+        if okCaller and isCaller then
             return oldStrByte(a0, a1)
         end
-        local luraph = getstack(3, 1)
-        luraph[1] = luraph[2]
-        luraph[5] = #luraph[2]
-        setstack(3, 4, luraph[5])
-        return oldStrByte(luraph[1], a1)
+        if type(a0) ~= 'string' or not (a0:sub(1, 1) == '{' and a0:sub(-1) == '}') then
+            return oldStrByte(a0, a1)
+        end
+        local ok1, luraph = pcall(getstack, 3, 1)
+        if ok1 and type(luraph) == "table" and luraph[2] then
+            local ok2 = pcall(setstack, 3, 4, #luraph[2])
+            return oldStrByte(luraph[2], a1)
+        end
+        return oldStrByte(a0, a1)
     end))
+    if not ok then
+        Library:Notify("Bypass hook failed: " .. tostring(hook), 4)
+        return
+    end
+    oldStrByte = hook
     bypassHooked = true
     StatusLabel:SetText("Bypass: Enabled")
     BypassToggle:SetValue(true)
@@ -43,7 +64,7 @@ end
 
 local function disableBypass()
     if not bypassHooked or not oldStrByte then return end
-    hookfunction(string.byte, oldStrByte)
+    pcall(hookfunction, string.byte, oldStrByte)
     oldStrByte = nil
     bypassHooked = false
     StatusLabel:SetText("Bypass: Disabled")
