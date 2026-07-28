@@ -468,21 +468,19 @@ end
 
 local function applyPatches()
     local s, items = pcall(require, ReplicatedStorage.Modules.Items)
-    if s and items then
-        for _, item in pairs(items.items) do
-            patchRecoil(item)
-        end
+    if not s or not items then return end
+    for _, item in pairs(items.items) do
+        patchRecoil(item)
     end
     -- hook create_item for future guns
-    local s2, items2 = pcall(require, ReplicatedStorage.Modules.Items)
-    if s2 and items2 and type(items2.create_item) == "function" and not items2._rcHookedCreate then
-        local orig = items2.create_item
-        items2.create_item = function(inst)
+    if type(items.create_item) == "function" and not items._rcHookedCreate then
+        local orig = items.create_item
+        items.create_item = function(inst)
             local result = orig(inst)
             patchRecoil(result)
             return result
         end
-        items2._rcHookedCreate = true
+        items._rcHookedCreate = true
     end
 end
 
