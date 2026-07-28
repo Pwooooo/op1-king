@@ -21,7 +21,6 @@ local SettingsTab = Window:AddTab("Settings")
 -- Anti-Cheat Bypass
 
 local BypassGroup = BypassTab:AddLeftGroupbox("Anti-Cheat Bypass")
-local InfoGroup = BypassTab:AddRightGroupbox("Information")
 
 local bypassHooked = false
 local origByte = nil
@@ -185,14 +184,9 @@ BypassGroup:AddButton({
     end,
 })
 
-InfoGroup:AddLabel("Hooks string.byte and string.char with stack swap. Protects shared.extras.ResetEnv. Auto-heals every 3s.", true)
-InfoGroup:AddDivider()
-InfoGroup:AddLabel("Keep OFF by default. Enable only when needed.", true)
-
 -- No Spread (hooks Gun.send_shoot to zero spread state)
 
 local SpreadGroup = CombatTab:AddLeftGroupbox("No Spread")
-local SpreadInfo = CombatTab:AddRightGroupbox("Info")
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -266,12 +260,6 @@ SpreadGroup:AddButton({
         Library:Notify("No Spread reset", 2)
     end,
 })
-
-SpreadInfo:AddLabel("Hooks Gun.send_shoot to set p1.states.spread to 0 before the spread calculation, then restores it after.", true)
-SpreadInfo:AddDivider()
-SpreadInfo:AddLabel("Works with OP1's client-sided hitscan. Zero spread = bullets go exactly where aimed.", true)
-
--- Bullet TP (hooks Gun.get_shoot_look to redirect aim to nearest enemy)
 
 local BulletTPGroup = CombatTab:AddLeftGroupbox("Bullet TP")
 
@@ -356,18 +344,12 @@ BulletTPGroup:AddToggle("BulletTPToggle", {
     end,
 })
 
-BulletTPGroup:AddDivider()
-
 BulletTPGroup:AddButton({
     Text = "Toggle",
     Func = function()
         if bulletTPHooked then disableBulletTP() else enableBulletTP() end
     end,
 })
-
-BulletTPGroup:AddDivider()
-
-BulletTPGroup:AddLabel("Hooks Gun.get_shoot_look to return a CFrame pointing at the nearest enemy's head. Works with OP1's client-sided hitscan.", true)
 
 -- Silent Aim (hooks ray_damage on Gun to redirect hitscan while keeping visual normal)
 
@@ -465,10 +447,6 @@ SilentAimGroup:AddButton({
         if silentAimHooked then disableSilentAim() else enableSilentAim() end
     end,
 })
-
-SilentAimGroup:AddDivider()
-
-SilentAimGroup:AddLabel("Hooks Gun.ray_damage to redirect the hitscan direction to the nearest enemy within FOV. Visual firing direction stays unchanged.", true)
 
 -- Recoil Control (hooks Gun.recoil_function to scale vertical/horizontal recoil)
 
@@ -599,8 +577,6 @@ RecoilGroup:AddButton({
 
 RecoilGroup:AddDivider()
 
-RecoilGroup:AddLabel("Hooks Gun.recoil_function to scale recoil_up and recoil_side states before the camera shake calculation. Set to 0% for no recoil, 100% for default.", true)
-
 -- No Gun Movement (hooks Gun.running to prevent weapon movement while moving)
 
 local NoMoveGroup = VisualTab:AddLeftGroupbox("No Gun Movement")
@@ -662,10 +638,6 @@ NoMoveGroup:AddButton({
         if noMoveHooked then disableNoMove() else enableNoMove() end
     end,
 })
-
-NoMoveGroup:AddDivider()
-
-NoMoveGroup:AddLabel("Hooks Gun.running to skip the running animation loop, preventing weapon movement while moving. Recoil is unaffected.", true)
 
 -- Bullet Tracers (hooks Gun.trail to create highly visible beam tracers)
 
@@ -775,10 +747,6 @@ TracerGroup:AddButton({
         if tracerHooked then disableTracers() else enableTracers() end
     end,
 })
-
-TracerGroup:AddDivider()
-
-TracerGroup:AddLabel("Hooks Gun.trail to create bright visible beam tracers from the shot origin to the hit point. The game's default subtle trails are replaced.", true)
 
 -- No Screen Shake (stops all screenshaking — recoil, WindShake, bobbing)
 
@@ -921,10 +889,6 @@ NoShakeGroup:AddButton({
     end,
 })
 
-NoShakeGroup:AddDivider()
-
-NoShakeGroup:AddLabel("Stops all screenshaking: hooks Gun.recoil_function (camera shake on fire), pauses WindShake (explosion / world shake), forces bob_cframe to neutral (head bobbing).", true)
-
 Library:SetWatermark("OP1 King")
 
 SaveManager:SetLibrary(Library)
@@ -937,8 +901,6 @@ ThemeManager:SetFolder("OP1King")
 SaveManager:BuildConfigSection(ConfigTab)
 
 local ConfigInfo = ConfigTab:AddLeftGroupbox("Config Info")
-ConfigInfo:AddLabel("Save and load your settings from the Configuration panel on the right.", true)
-ConfigInfo:AddDivider()
 ConfigInfo:AddButton({
     Text = "Refresh Config List",
     Func = function()
