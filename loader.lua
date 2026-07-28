@@ -495,7 +495,7 @@ end
 RecoilGroup:AddToggle("RecoilToggle", {
     Text = "Recoil Control",
     Default = false,
-    Tooltip = "Overrides camera CFrame at Camera.Value+1 to eliminate recoil (BindToRenderStep)",
+    Tooltip = "Scales camera CFrameValue 'shoot' offset at Camera.Value-1 priority before camera render. 0% = no recoil.",
     Callback = function(v)
         if v then rcEnable() else rcDisable() end
     end,
@@ -510,7 +510,7 @@ RecoilGroup:AddSlider("RecoilV", {
     Max = 100,
     Rounding = 1,
     Suffix = "%",
-    Tooltip = "0% = no recoil, 100% = full game recoil. Scales recoil_up state before recoil_function reads it.",
+    Tooltip = "Intercepts camera CFrameValue 'shoot' offset at Camera.Value-1 priority, scales angles by slider %. 0% = no recoil, 100% = full game recoil.",
     Callback = function(v)
         recoilMultV = v
     end,
@@ -523,7 +523,7 @@ RecoilGroup:AddSlider("RecoilH", {
     Max = 100,
     Rounding = 1,
     Suffix = "%",
-    Tooltip = "0% = no recoil, 100% = full game recoil. Scales recoil_side state before recoil_function reads it.",
+    Tooltip = "Intercepts camera CFrameValue 'shoot' offset at Camera.Value-1 priority, scales angles by slider %. 0% = no recoil, 100% = full game recoil.",
     Callback = function(v)
         recoilMultH = v
     end,
