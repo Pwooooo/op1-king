@@ -448,7 +448,7 @@ SilentAimGroup:AddButton({
     end,
 })
 
--- Recoil Control (BindToRenderStep at Camera.Value+1 — overrides camera.CFrame to cancel recoil)
+-- Recoil Control (RenderStepped — lerps between our recoil-free rotation and game's natural CFrame)
 
 local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Control")
 
@@ -457,7 +457,6 @@ local recoilMultV = 100
 local recoilMultH = 100
 local rcSaveX = 0
 local rcSaveY = 0
-local rcFiring = false
 local rcConn = nil
 
 local function rcSync()
@@ -473,28 +472,25 @@ local function rcEnable()
     rcSync()
     rcConn = game:GetService("RunService").RenderStepped:Connect(function()
         if not recoilHooked then return end
-        local ok = pcall(function()
-            local cam = workspace.CurrentCamera
-            if not cam then return end
-            local lp = game:GetService("Players").LocalPlayer
-            local char = lp.Character
-            if not char or not char:FindFirstChildOfClass("Humanoid") or char.Humanoid.Health <= 0 then
-                rcSync(); return
-            end
-            local UIS = game:GetService("UserInputService")
-            if UIS.MouseBehavior == Enum.MouseBehavior.Default then rcSync(); return end
-            local delta = UIS:GetMouseDelta()
-            local _, _, realZ = cam.CFrame:ToEulerAnglesYXZ()
-            local flip = (cam.CFrame.UpVector.Y < 0) and -1 or 1
-            local mulV = recoilMultV * 0.01
-            local mulH = recoilMultH * 0.01
-            rcSaveY = rcSaveY - math.rad(delta.X * mulH * 0.48 * flip)
-            rcSaveX = rcSaveX - math.rad(delta.Y * mulV * 0.48)
-            rcSaveX = math.clamp(rcSaveX, math.rad(-85), math.rad(85))
-            cam.CFrame = CFrame.new(cam.CFrame.Position) * CFrame.fromEulerAnglesYXZ(rcSaveX, rcSaveY, realZ)
-            rcFiring = true
-        end)
-        if not ok then rcSync() end
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+        local lp = game:GetService("Players").LocalPlayer
+        local char = lp.Character
+        if not char or not char:FindFirstChildOfClass("Humanoid") or char.Humanoid.Health <= 0 then
+            rcSync(); return
+        end
+        local UIS = game:GetService("UserInputService")
+        if UIS.MouseBehavior == Enum.MouseBehavior.Default then rcSync(); return end
+        local delta = UIS:GetMouseDelta()
+        local flip = (cam.CFrame.UpVector.Y < 0) and -1 or 1
+        rcSaveY = rcSaveY - math.rad(delta.X * 0.48 * flip)
+        rcSaveX = rcSaveX - math.rad(delta.Y * 0.48)
+        rcSaveX = math.clamp(rcSaveX, math.rad(-85), math.rad(85))
+        local pos = cam.CFrame.Position
+        local _, _, realZ = cam.CFrame:ToEulerAnglesYXZ()
+        local noRecoilCF = CFrame.new(pos) * CFrame.fromEulerAnglesYXZ(rcSaveX, rcSaveY, realZ)
+        local t = math.max(recoilMultV, recoilMultH) * 0.01
+        cam.CFrame = noRecoilCF:Lerp(cam.CFrame, t)
     end)
     Library:Notify("Recoil Control enabled", 2)
 end
@@ -517,26 +513,26 @@ RecoilGroup:AddToggle("RecoilToggle", {
 RecoilGroup:AddDivider()
 
 RecoilGroup:AddSlider("RecoilV", {
-    Text = "Vertical Sense",
+    Text = "Vertical",
     Default = 100,
     Min = 0,
     Max = 100,
     Rounding = 1,
     Suffix = "%",
-    Tooltip = "Mouse sensitivity while firing (100% = normal)",
+    Tooltip = "0% = no recoil, 100% = full game recoil. Bleed-between both sliders' max.",
     Callback = function(v)
         recoilMultV = v
     end,
 })
 
 RecoilGroup:AddSlider("RecoilH", {
-    Text = "Horizontal Sense",
+    Text = "Horizontal",
     Default = 100,
     Min = 0,
     Max = 100,
     Rounding = 1,
     Suffix = "%",
-    Tooltip = "Mouse sensitivity while firing (100% = normal)",
+    Tooltip = "0% = no recoil, 100% = full game recoil. Bleed-between both sliders' max.",
     Callback = function(v)
         recoilMultH = v
     end,
