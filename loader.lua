@@ -456,8 +456,8 @@ local gunModuleRc = nil
 local recoilHooked = false
 local origRecoilFunc_RC = nil
 local patchedItemsRC = {}
-local recoilMultV = 0
-local recoilMultH = 0
+local recoilMultV = 100
+local recoilMultH = 100
 
 local function getGunModuleRC()
     if gunModuleRc then return gunModuleRc end
@@ -473,15 +473,21 @@ local function enableRecoilControl()
         Library:Notify("Recoil Control: failed to load Gun module", 3)
         return
     end
-    origRecoilFunc_RC = mod.recoil_function
+    -- Use the shared original recoil_function (saved by No Screen Shake if enabled), otherwise get current
+    -- Save a shared reference to the real original so other features can reference it
+    if not getgenv()._op1_recoil_orig then
+        getgenv()._op1_recoil_orig = mod.recoil_function
+    end
+    origRecoilFunc_RC = getgenv()._op1_recoil_orig
     mod.recoil_function = function(p1, p2)
         if not recoilHooked or not p1 or not p1.states then
             return origRecoilFunc_RC(p1, p2)
         end
         local origUp = p1.states.recoil_up:get()
         local origSide = p1.states.recoil_side:get()
-        p1.states.recoil_up:set(origUp * recoilMultV * 0.01)
-        p1.states.recoil_side:set(origSide * recoilMultH * 0.01)
+        local nsOverride = getgenv()._op1_ns_recoil and 0 or 1
+        p1.states.recoil_up:set(origUp * recoilMultV * 0.01 * nsOverride)
+        p1.states.recoil_side:set(origSide * recoilMultH * 0.01 * nsOverride)
         origRecoilFunc_RC(p1, p2)
         p1.states.recoil_up:set(origUp)
         p1.states.recoil_side:set(origSide)
@@ -499,8 +505,9 @@ local function enableRecoilControl()
                     end
                     local u = p1.states.recoil_up:get()
                     local s = p1.states.recoil_side:get()
-                    p1.states.recoil_up:set(u * recoilMultV * 0.01)
-                    p1.states.recoil_side:set(s * recoilMultH * 0.01)
+                    local ns = getgenv()._op1_ns_recoil and 0 or 1
+                    p1.states.recoil_up:set(u * recoilMultV * 0.01 * ns)
+                    p1.states.recoil_side:set(s * recoilMultH * 0.01 * ns)
                     orig(p1, p2)
                     p1.states.recoil_up:set(u)
                     p1.states.recoil_side:set(s)
@@ -509,11 +516,13 @@ local function enableRecoilControl()
         end
     end
     recoilHooked = true
+    getgenv()._op1_recoil_active = true
     Library:Notify("Recoil Control enabled", 2)
 end
 
 local function disableRecoilControl()
     if not recoilHooked then return end
+    getgenv()._op1_recoil_active = false
     local mod = getGunModuleRC()
     if mod and origRecoilFunc_RC then
         mod.recoil_function = origRecoilFunc_RC
@@ -542,12 +551,12 @@ RecoilGroup:AddDivider()
 
 RecoilGroup:AddSlider("RecoilV", {
     Text = "Vertical",
-    Default = 0,
+    Default = 100,
     Min = 0,
-    Max = 200,
+    Max = 100,
     Rounding = 1,
     Suffix = "%",
-    Tooltip = "Vertical recoil multiplier (0 = none, 100 = default, 200 = double)",
+    Tooltip = "Vertical recoil (0 = none, 100 = default)",
     Callback = function(v)
         recoilMultV = v
     end,
@@ -555,12 +564,12 @@ RecoilGroup:AddSlider("RecoilV", {
 
 RecoilGroup:AddSlider("RecoilH", {
     Text = "Horizontal",
-    Default = 0,
+    Default = 100,
     Min = 0,
-    Max = 200,
+    Max = 100,
     Rounding = 1,
     Suffix = "%",
-    Tooltip = "Horizontal recoil multiplier (0 = none, 100 = default, 200 = double)",
+    Tooltip = "Horizontal recoil (0 = none, 100 = default)",
     Callback = function(v)
         recoilMultH = v
     end,
@@ -753,15 +762,9 @@ TracerGroup:AddButton({
 local NoShakeGroup = VisualTab:AddLeftGroupbox("No Screen Shake")
 
 local noShakeHooked = false
-local origRecoilFunc = nil
-local patchedShakeItems = {}
 local windShakePaused = false
 local bobHb = nil
-
-local function getGunModuleRaw()
-    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
-    return s and m
-end
+local nsRecoilThread = nil
 
 local function getItemsModule()
     local s, m = pcall(require, ReplicatedStorage.Modules.Items)
@@ -771,45 +774,6 @@ end
 local function getWindShake()
     local s, m = pcall(require, ReplicatedStorage.Modules.WindShake)
     return s and m
-end
-
-local function patchGunRecoil()
-    local mod = getGunModuleRaw()
-    if not mod then return false end
-    origRecoilFunc = mod.recoil_function
-    mod.recoil_function = function(p1, p2)
-        if p2 and p2.values and p2.values.cframes then
-            p2.values.cframes:get("camera"):remove_offset("shoot")
-        end
-    end
-    local itemsMod = getItemsModule()
-    if itemsMod then
-        for _, item in pairs(itemsMod.items) do
-            if item and type(item.recoil) == "function" then
-                patchedShakeItems[item] = item.recoil
-                item.recoil = function(gun, player)
-                    if player and player.values and player.values.cframes then
-                        player.values.cframes:get("camera"):remove_offset("shoot")
-                    end
-                end
-            end
-        end
-    end
-    return true
-end
-
-local function restoreGunRecoil()
-    local mod = getGunModuleRaw()
-    if mod and origRecoilFunc then
-        mod.recoil_function = origRecoilFunc
-    end
-    for item, orig in pairs(patchedShakeItems) do
-        if item and item.recoil then
-            item.recoil = orig
-        end
-    end
-    patchedShakeItems = {}
-    origRecoilFunc = nil
 end
 
 local function pauseWindShake()
@@ -851,23 +815,36 @@ end
 
 local function enableNoShake()
     if noShakeHooked then return end
-    local ok = patchGunRecoil()
-    if not ok then
-        Library:Notify("No Screen Shake: failed to load Gun module", 3)
-        return
-    end
+    noShakeHooked = true
+    getgenv()._op1_ns_recoil = true
+    nsRecoilThread = task.spawn(function()
+        while noShakeHooked do
+            local ok, charMod = pcall(require, game.ReplicatedStorage.Modules.Character)
+            if ok then
+                local got, char = pcall(charMod.get_char)
+                if got and char then
+                    local gun = char.curr_gun
+                    if gun and gun.states then
+                        pcall(gun.states.recoil_up.set, gun.states.recoil_up, 0)
+                        pcall(gun.states.recoil_side.set, gun.states.recoil_side, 0)
+                    end
+                end
+            end
+            task.wait()
+        end
+    end)
     pauseWindShake()
     noopBobbing()
-    noShakeHooked = true
-    Library:Notify("No Screen Shake enabled (recoil + wind + bobbing)", 2)
+    Library:Notify("No Screen Shake enabled", 2)
 end
 
 local function disableNoShake()
     if not noShakeHooked then return end
-    restoreGunRecoil()
+    noShakeHooked = false
+    getgenv()._op1_ns_recoil = false
+    if nsRecoilThread then task.cancel(nsRecoilThread); nsRecoilThread = nil end
     resumeWindShake()
     stopBobbing()
-    noShakeHooked = false
     Library:Notify("No Screen Shake disabled", 2)
 end
 
