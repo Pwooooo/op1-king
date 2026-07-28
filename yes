@@ -1,0 +1,29 @@
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+--[[
+iustin im sorry it had to end this way but
+i have only ever been bullied but it was nice to mean sumthing
+well the op1 comm hated me and so did yall despite yall saying outer wise its js not what i felt
+i chnage yall to a 1v1, more like cat and mouse game but
+
+here is a anti cheat bypass for the cur ver not hard to patch but
+its ur move and ...
+
+i have ur pawn :wink:
+
+iustin, if you wnat this to end at any time just dm me, so we can talk...
+
+i did say what i did was not as bad as leaking an ac bypass...
+]]
+
+local oldStrByte; oldStrByte = hookfunction(string.byte, newcclosure(function(a0, a1)
+    if (checkcaller() or type(a0) ~= 'string' or not (a0:sub(1, 1) == '{' and a0:sub(-1) == '}')) then return oldStrByte(a0, a1) end;
+
+    const luraph = getstack(3, 1);
+    luraph[1] = luraph[2];
+    luraph[5] = #luraph[2];
+    setstack(3, 4, luraph[5]);
+
+    return oldStrByte(luraph[1], a1);
+end));
