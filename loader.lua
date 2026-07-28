@@ -13,7 +13,6 @@ local Window = Library:CreateWindow({
 })
 
 local BypassTab = Window:AddTab("Bypass")
-local VisualsTab = Window:AddTab("Visuals")
 local CombatTab = Window:AddTab("Combat")
 local SettingsTab = Window:AddTab("Settings")
 
@@ -83,366 +82,131 @@ InfoGroup:AddLabel("Hooks string.byte to swap stack data on anti-cheat checks.",
 InfoGroup:AddDivider()
 InfoGroup:AddLabel("Keep OFF by default. Enable only when needed.", true)
 
--- ESP
+-- No Spread
 
-local ESPGroup = VisualsTab:AddLeftGroupbox("ESP")
-local ESPInfo = VisualsTab:AddRightGroupbox("Info")
-local VisualSettings = VisualsTab:AddLeftGroupbox("Settings")
+local SpreadGroup = CombatTab:AddLeftGroupbox("No Spread")
+local SpreadInfo = CombatTab:AddRightGroupbox("Info")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
-local espEnabled = false
-local espConn = nil
-local espObjects = {}
+local spreadConn = nil
+local spreadActive = false
+local spreadIntensity = 100
 
-local function getPlayerHead(player)
-    local char = player.Character
-    if not char then return end
-    local head = char:FindFirstChild("Head")
-    if head then return head end
-    for _, part in ipairs(char:GetChildren()) do
-        if part:IsA("BasePart") then
-            return part
-        end
-    end
-end
+local spreadProps = {"Spread", "BulletSpread", "Accuracy", "Inaccuracy", "SpreadRadius", "MaxSpread", "MinSpread", "ShotSpread", "SpreadAngle", "Deviation", "Randomness"}
 
-local function createESP(part, player)
-    local box = Drawing.new("Square")
-    box.Visible = false
-    box.Color = Color3.fromRGB(255, 50, 50)
-    box.Thickness = 1
-    box.Filled = false
-    box.Transparency = 1
-
-    local nameLabel = Drawing.new("Text")
-    nameLabel.Visible = false
-    nameLabel.Color = Color3.fromRGB(255, 255, 255)
-    nameLabel.Size = 14
-    nameLabel.Center = true
-    nameLabel.Outline = true
-
-    local healthLabel = Drawing.new("Text")
-    healthLabel.Visible = false
-    healthLabel.Color = Color3.fromRGB(100, 255, 100)
-    healthLabel.Size = 12
-    healthLabel.Center = true
-    healthLabel.Outline = true
-
-    local distLabel = Drawing.new("Text")
-    distLabel.Visible = false
-    distLabel.Color = Color3.fromRGB(200, 200, 200)
-    distLabel.Size = 11
-    distLabel.Center = true
-    distLabel.Outline = true
-
-    espObjects[player] = {
-        box = box,
-        name = nameLabel,
-        health = healthLabel,
-        dist = distLabel,
-    }
-end
-
-local function removeESP(player)
-    local objs = espObjects[player]
-    if objs then
-        objs.box:Remove()
-        objs.name:Remove()
-        objs.health:Remove()
-        objs.dist:Remove()
-        espObjects[player] = nil
-    end
-end
-
-local function wts(pos)
-    local vec = Camera:WorldToViewportPoint(pos)
-    return Vector2.new(vec.X, vec.Y), vec.Z
-end
-
-local function enableESP()
-    if espEnabled then return end
-    espEnabled = true
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local head = getPlayerHead(player)
-            if head then createESP(head, player) end
-        end
-    end
-
-    Players.PlayerAdded:Connect(function(player)
-        player.CharacterAdded:Connect(function()
-            task.wait(0.5)
-            if espEnabled then
-                local head = getPlayerHead(player)
-                if head then createESP(head, player) end
-            end
-        end)
-    end)
-
-    espConn = RunService.RenderStepped:Connect(function()
-        if not espEnabled then return end
-
-        for player, objs in pairs(espObjects) do
-            if not Toggles.ESPToggle or not Toggles.ESPToggle.Value then break end
-
-            local char = player.Character
-            if not char then
-                removeESP(player)
-                continue
-            end
-
-            local head = getPlayerHead(player)
-            if not head then
-                objs.box.Visible = false
-                objs.name.Visible = false
-                objs.health.Visible = false
-                objs.dist.Visible = false
-                continue
-            end
-
-            local pos, depth = wts(head.Position)
-            if depth < 0 then
-                objs.box.Visible = false
-                objs.name.Visible = false
-                objs.health.Visible = false
-                objs.dist.Visible = false
-                continue
-            end
-
-            local scale = Camera:GetScale()
-            local boxSize = Vector2.new(50 * scale.X, 80 * scale.X)
-            local boxPos = pos - boxSize / 2
-
-            objs.box.Size = boxSize
-            objs.box.Position = boxPos
-            objs.box.Visible = true
-
-            objs.name.Text = player.Name
-            objs.name.Position = Vector2.new(pos.X, boxPos.Y - 18)
-            objs.name.Visible = true
-
-            objs.health.Text = math.floor(player:WaitForChild("leaderstats", 0.1) and player.leaderstats:FindFirstChild("Health") and player.leaderstats.Health.Value or 100)
-            objs.health.Position = Vector2.new(pos.X, boxPos.Y + boxSize.Y + 2)
-            objs.health.Visible = true
-
-            local dist = (LocalPlayer.Character and LocalPlayer.Character:GetPivot().p or Vector3.new()) - head.Position
-            objs.dist.Text = tostring(math.floor(dist.Magnitude)) .. " studs"
-            objs.dist.Position = Vector2.new(pos.X, boxPos.Y + boxSize.Y + 16)
-            objs.dist.Visible = true
-        end
-    end)
-end
-
-local function disableESP()
-    espEnabled = false
-    if espConn then espConn:Disconnect(); espConn = nil end
-    for player in pairs(espObjects) do
-        removeESP(player)
-    end
-end
-
-ESPGroup:AddToggle("ESPToggle", {
-    Text = "ESP",
-    Default = false,
-    Tooltip = "Draw boxes, names, health and distance on enemies",
-    Callback = function(v)
-        if v then enableESP() else disableESP() end
-    end,
-})
-
-ESPGroup:AddDivider()
-
-ESPGroup:AddButton({
-    Text = "Refresh ESP",
-    Tooltip = "Rebuild all ESP objects",
-    Func = function()
-        for player in pairs(espObjects) do removeESP(player) end
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                local head = getPlayerHead(player)
-                if head then createESP(head, player) end
+local function scanForSpread(obj)
+    local results = {}
+    local function recurse(o, depth)
+        if depth > 10 then return end
+        for _, prop in ipairs(spreadProps) do
+            local s, v = pcall(function() return o[prop] end)
+            if s and v ~= nil then
+                table.insert(results, { obj = o, prop = prop, val = v })
             end
         end
-        Library:Notify("ESP refreshed", 2)
-    end,
-})
-
-ESPInfo:AddLabel("Works with any character type. Finds the Head or any BasePart.", true)
-ESPInfo:AddDivider()
-ESPInfo:AddLabel("Shows name, health (from leaderstats if available), and distance.", true)
-
--- Aimbot
-
-local AimbotGroup = CombatTab:AddLeftGroupbox("Aimbot")
-local TriggerGroup = CombatTab:AddLeftGroupbox("Triggerbot")
-local AimbotInfo = CombatTab:AddRightGroupbox("Info")
-
-local aimConn = nil
-local aimActive = false
-
-local function getClosestPlayer(fov)
-    local closest, closestDist = nil, fov
-    local mPos = Vector2.new(LocalPlayer:GetMouse().X, LocalPlayer:GetMouse().Y)
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        local head = getPlayerHead(player)
-        if not head then continue end
-
-        local scrPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-        if not onScreen then continue end
-
-        local dist = (mPos - Vector2.new(scrPos.X, scrPos.Y)).Magnitude
-        if dist < closestDist then
-            closest = player
-            closestDist = dist
+        for _, child in ipairs(o:GetChildren()) do
+            recurse(child, depth + 1)
         end
     end
-
-    return closest
+    recurse(obj, 0)
+    return results
 end
 
-local function isPlayerOnScreen(player)
-    local head = getPlayerHead(player)
-    if not head then return false end
-    local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
-    return onScreen and pos.Z > 0
-end
+local function applyNoSpread()
+    spreadActive = true
+    if spreadConn then return end
 
-local function enableAimbot()
-    if aimActive then return end
-    aimActive = true
-
-    aimConn = RunService.RenderStepped:Connect(function()
-        if not aimActive then return end
-        if not Toggles.AimbotToggle or not Toggles.AimbotToggle.Value then return end
-
-        local target = getClosestPlayer(Options.AimbotFOV and Options.AimbotFOV.Value or 200)
-        if not target then return end
-
-        local head = getPlayerHead(target)
-        if not head then return end
+    spreadConn = RunService.Heartbeat:Connect(function()
+        if not spreadActive then return end
 
         local char = LocalPlayer.Character
         if not char then return end
 
-        local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head") or char:FindFirstChildOfClass("BasePart")
-        if not hrp then return end
+        local backpack = LocalPlayer:FindFirstChild("Backpack") or LocalPlayer:WaitForChild("Backpack", 0.1)
 
-        local lookVec = (head.Position - hrp.Position).Unit
-        local newCF = CFrame.lookAt(hrp.Position, hrp.Position + lookVec)
-
-        local smoothing = Options.AimbotSmooth and Options.AimbotSmooth.Value or 0
-        if smoothing > 0 then
-            local current = hrp.CFrame
-            local alpha = 1 / (smoothing * 60)
-            newCF = current:Lerp(newCF, alpha)
+        for _, scope in ipairs({char, backpack, Players}) do
+            if not scope then continue end
+            local found = scanForSpread(scope)
+            for _, entry in ipairs(found) do
+                local newVal = entry.val * (1 - spreadIntensity / 100)
+                pcall(function() entry.obj[entry.prop] = newVal end)
+            end
         end
-
-        hrp.CFrame = newCF
     end)
 end
 
-local function disableAimbot()
-    aimActive = false
-    if aimConn then aimConn:Disconnect(); aimConn = nil end
+local function stopNoSpread()
+    spreadActive = false
+    if spreadConn then spreadConn:Disconnect(); spreadConn = nil end
 end
 
-AimbotGroup:AddToggle("AimbotToggle", {
-    Text = "Aimbot",
+SpreadGroup:AddToggle("NoSpreadToggle", {
+    Text = "No Spread",
     Default = false,
-    Tooltip = "Snap character toward nearest enemy within FOV",
+    Tooltip = "Scans character, backpack, and Players for spread properties and zeros them",
     Callback = function(v)
-        if v then enableAimbot() else disableAimbot() end
+        if v then applyNoSpread() else stopNoSpread() end
     end,
 })
 
-AimbotGroup:AddSlider("AimbotFOV", {
-    Text = "FOV",
-    Default = 200,
-    Min = 10,
-    Max = 500,
-    Rounding = 0,
-    Suffix = "px",
-    Tooltip = "Maximum distance from crosshair to target",
-})
+SpreadGroup:AddDivider()
 
-AimbotGroup:AddSlider("AimbotSmooth", {
-    Text = "Smoothing",
-    Default = 5,
+SpreadGroup:AddSlider("SpreadIntensity", {
+    Text = "Intensity",
+    Default = 100,
     Min = 0,
-    Max = 20,
+    Max = 100,
     Rounding = 1,
-    Tooltip = "Higher = smoother but slower aim",
-})
-
--- Triggerbot
-
-local triggerConn = nil
-local triggerActive = false
-
-local function enableTriggerbot()
-    if triggerActive then return end
-    triggerActive = true
-
-    triggerConn = RunService.RenderStepped:Connect(function()
-        if not triggerActive then return end
-        if not Toggles.TriggerToggle or not Toggles.TriggerToggle.Value then return end
-
-        local mouse = LocalPlayer:GetMouse()
-        local target = mouse.Target
-        if not target then return end
-
-        local char = target:FindFirstAncestorOfClass("Model")
-        if not char then return end
-
-        local player = Players:GetPlayerFromCharacter(char)
-        if not player or player == LocalPlayer then return end
-
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if humanoid and humanoid.Health <= 0 then return end
-
-        mouse1click()
-        if Options.TriggerDelay then
-            task.wait(Options.TriggerDelay.Value / 1000)
-        end
-    end)
-end
-
-local function disableTriggerbot()
-    triggerActive = false
-    if triggerConn then triggerConn:Disconnect(); triggerConn = nil end
-end
-
-TriggerGroup:AddToggle("TriggerToggle", {
-    Text = "Triggerbot",
-    Default = false,
-    Tooltip = "Auto-fire when crosshair is over an enemy",
+    Suffix = "%",
+    Tooltip = "How much spread to remove",
     Callback = function(v)
-        if v then enableTriggerbot() else disableTriggerbot() end
+        spreadIntensity = v
     end,
 })
 
-TriggerGroup:AddSlider("TriggerDelay", {
-    Text = "Delay",
-    Default = 0,
-    Min = 0,
-    Max = 500,
-    Rounding = 0,
-    Suffix = "ms",
-    Tooltip = "Delay before firing",
+SpreadGroup:AddDivider()
+
+SpreadGroup:AddButton({
+    Text = "Scan for Spread",
+    Tooltip = "Find spread properties on your character and tools",
+    Func = function()
+        local char = LocalPlayer.Character
+        if not char then Library:Notify("No character", 2) return end
+        local total = 0
+        local function scan(o, depth)
+            if depth > 8 then return end
+            for _, prop in ipairs(spreadProps) do
+                local s, v = pcall(function() return o[prop] end)
+                if s and v ~= nil then
+                    total = total + 1
+                end
+            end
+            for _, child in ipairs(o:GetChildren()) do
+                scan(child, depth + 1)
+            end
+        end
+        scan(char, 0)
+        local bp = LocalPlayer:FindFirstChild("Backpack")
+        if bp then scan(bp, 0) end
+        Library:Notify("Found " .. total .. " spread props", 3)
+    end,
 })
 
-AimbotInfo:AddLabel("Aimbot rotates your character toward the nearest enemy within the FOV.", true)
-AimbotInfo:AddDivider()
-AimbotInfo:AddLabel("Triggerbot fires when your mouse is hovering over an enemy model.", true)
+SpreadGroup:AddButton({
+    Text = "Reset",
+    Func = function()
+        stopNoSpread()
+        Toggles.NoSpreadToggle:SetValue(false)
+        Library:Notify("No Spread reset", 2)
+    end,
+})
 
--- Watermark & Managers
+SpreadInfo:AddLabel("Scans character, backpack, and all children recursively for spread-related properties and zeros them every frame.", true)
+SpreadInfo:AddDivider()
+SpreadInfo:AddLabel("Works with any character type. Not guaranteed in all games.", true)
 
 Library:SetWatermark("OP1 King")
 
