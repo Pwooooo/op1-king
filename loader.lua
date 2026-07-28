@@ -13,14 +13,13 @@ local Window = Library:CreateWindow({
 })
 
 local BypassTab = Window:AddTab("Bypass")
+local VisualsTab = Window:AddTab("Visuals")
 local CombatTab = Window:AddTab("Combat")
-local ScannerTab = Window:AddTab("Scanner")
 local SettingsTab = Window:AddTab("Settings")
 
 -- Anti-Cheat Bypass
 
 local BypassGroup = BypassTab:AddLeftGroupbox("Anti-Cheat Bypass")
-local StatusGroup = BypassTab:AddRightGroupbox("Status")
 local InfoGroup = BypassTab:AddRightGroupbox("Information")
 
 local bypassHooked = false
@@ -52,8 +51,7 @@ local function disableBypass()
     BypassToggle:SetValue(false)
 end
 
-local StatusLabel = StatusGroup:AddLabel("Bypass: Disabled")
-BypassGroup:AddDivider()
+local StatusLabel = BypassGroup:AddLabel("Bypass: Disabled")
 
 local BypassToggle = BypassGroup:AddToggle("BypassToggle", {
     Text = "Enable Bypass",
@@ -63,8 +61,6 @@ local BypassToggle = BypassGroup:AddToggle("BypassToggle", {
         if v then enableBypass() else disableBypass() end
     end,
 })
-
-BypassGroup:AddDivider()
 
 BypassGroup:AddButton({
     Text = "Enable Now",
@@ -76,8 +72,6 @@ BypassGroup:AddButton({
     Func = function() disableBypass() Library:Notify("Bypass disabled", 2) end,
 })
 
-BypassGroup:AddDivider()
-
 BypassGroup:AddButton({
     Text = "Rejoin Server",
     Func = function()
@@ -85,345 +79,368 @@ BypassGroup:AddButton({
     end,
 })
 
-InfoGroup:AddLabel("Hooks string.byte to detect when the anti-cheat checks payload formatting and swaps stack data to evade detection.", true)
+InfoGroup:AddLabel("Hooks string.byte to swap stack data on anti-cheat checks.", true)
 InfoGroup:AddDivider()
 InfoGroup:AddLabel("Keep OFF by default. Enable only when needed.", true)
 
--- No Spread
+-- ESP
 
-local SpreadGroup = CombatTab:AddLeftGroupbox("No Spread")
-local SpreadInfo = CombatTab:AddRightGroupbox("Info")
+local ESPGroup = VisualsTab:AddLeftGroupbox("ESP")
+local ESPInfo = VisualsTab:AddRightGroupbox("Info")
+local VisualSettings = VisualsTab:AddLeftGroupbox("Settings")
 
-local spreadConn = nil
-local spreadActive = false
-local spreadIntensity = 100
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
 
-local function findSpreadProperties(tool)
-    local props = {"Spread", "BulletSpread", "Accuracy", "Inaccuracy", "SpreadRadius", "MaxSpread", "MinSpread", "ShotSpread", "SpreadAngle"}
-    for _, prop in ipairs(props) do
-        local s, v = pcall(function() return tool[prop] end)
-        if s and v ~= nil then return prop, v end
-    end
-    for _, child in ipairs(tool:GetDescendants()) do
-        for _, prop in ipairs(props) do
-            local s, v = pcall(function() return child[prop] end)
-            if s and v ~= nil then return child, prop, v end
+local espEnabled = false
+local espConn = nil
+local espObjects = {}
+
+local function getPlayerHead(player)
+    local char = player.Character
+    if not char then return end
+    local head = char:FindFirstChild("Head")
+    if head then return head end
+    for _, part in ipairs(char:GetChildren()) do
+        if part:IsA("BasePart") then
+            return part
         end
     end
 end
 
-local function applyNoSpread()
-    spreadActive = true
-    if spreadConn then return end
-    local player = game.Players.LocalPlayer
-    if not player then return end
-    spreadConn = game:GetService("RunService").Heartbeat:Connect(function()
-        if not spreadActive then return end
-        local char = player.Character
-        if not char then return end
-        local tool = char:FindFirstChildOfClass("Tool") or char:FindFirstChildOfClass("HopperBin")
-        if not tool then return end
-        local target, propName, origVal = findSpreadProperties(tool)
-        if not target then return end
-        local obj, prop = target, propName
-        if type(target) == "string" then obj = tool; prop = target end
-        pcall(function() obj[prop] = origVal * (1 - spreadIntensity / 100) end)
+local function createESP(part, player)
+    local box = Drawing.new("Square")
+    box.Visible = false
+    box.Color = Color3.fromRGB(255, 50, 50)
+    box.Thickness = 1
+    box.Filled = false
+    box.Transparency = 1
+
+    local nameLabel = Drawing.new("Text")
+    nameLabel.Visible = false
+    nameLabel.Color = Color3.fromRGB(255, 255, 255)
+    nameLabel.Size = 14
+    nameLabel.Center = true
+    nameLabel.Outline = true
+
+    local healthLabel = Drawing.new("Text")
+    healthLabel.Visible = false
+    healthLabel.Color = Color3.fromRGB(100, 255, 100)
+    healthLabel.Size = 12
+    healthLabel.Center = true
+    healthLabel.Outline = true
+
+    local distLabel = Drawing.new("Text")
+    distLabel.Visible = false
+    distLabel.Color = Color3.fromRGB(200, 200, 200)
+    distLabel.Size = 11
+    distLabel.Center = true
+    distLabel.Outline = true
+
+    espObjects[player] = {
+        box = box,
+        name = nameLabel,
+        health = healthLabel,
+        dist = distLabel,
+    }
+end
+
+local function removeESP(player)
+    local objs = espObjects[player]
+    if objs then
+        objs.box:Remove()
+        objs.name:Remove()
+        objs.health:Remove()
+        objs.dist:Remove()
+        espObjects[player] = nil
+    end
+end
+
+local function wts(pos)
+    local vec = Camera:WorldToViewportPoint(pos)
+    return Vector2.new(vec.X, vec.Y), vec.Z
+end
+
+local function enableESP()
+    if espEnabled then return end
+    espEnabled = true
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local head = getPlayerHead(player)
+            if head then createESP(head, player) end
+        end
+    end
+
+    Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function()
+            task.wait(0.5)
+            if espEnabled then
+                local head = getPlayerHead(player)
+                if head then createESP(head, player) end
+            end
+        end)
+    end)
+
+    espConn = RunService.RenderStepped:Connect(function()
+        if not espEnabled then return end
+
+        for player, objs in pairs(espObjects) do
+            if not Toggles.ESPToggle or not Toggles.ESPToggle.Value then break end
+
+            local char = player.Character
+            if not char then
+                removeESP(player)
+                continue
+            end
+
+            local head = getPlayerHead(player)
+            if not head then
+                objs.box.Visible = false
+                objs.name.Visible = false
+                objs.health.Visible = false
+                objs.dist.Visible = false
+                continue
+            end
+
+            local pos, depth = wts(head.Position)
+            if depth < 0 then
+                objs.box.Visible = false
+                objs.name.Visible = false
+                objs.health.Visible = false
+                objs.dist.Visible = false
+                continue
+            end
+
+            local scale = Camera:GetScale()
+            local boxSize = Vector2.new(50 * scale.X, 80 * scale.X)
+            local boxPos = pos - boxSize / 2
+
+            objs.box.Size = boxSize
+            objs.box.Position = boxPos
+            objs.box.Visible = true
+
+            objs.name.Text = player.Name
+            objs.name.Position = Vector2.new(pos.X, boxPos.Y - 18)
+            objs.name.Visible = true
+
+            objs.health.Text = math.floor(player:WaitForChild("leaderstats", 0.1) and player.leaderstats:FindFirstChild("Health") and player.leaderstats.Health.Value or 100)
+            objs.health.Position = Vector2.new(pos.X, boxPos.Y + boxSize.Y + 2)
+            objs.health.Visible = true
+
+            local dist = (LocalPlayer.Character and LocalPlayer.Character:GetPivot().p or Vector3.new()) - head.Position
+            objs.dist.Text = tostring(math.floor(dist.Magnitude)) .. " studs"
+            objs.dist.Position = Vector2.new(pos.X, boxPos.Y + boxSize.Y + 16)
+            objs.dist.Visible = true
+        end
     end)
 end
 
-local function stopNoSpread()
-    spreadActive = false
-    if spreadConn then spreadConn:Disconnect(); spreadConn = nil end
+local function disableESP()
+    espEnabled = false
+    if espConn then espConn:Disconnect(); espConn = nil end
+    for player in pairs(espObjects) do
+        removeESP(player)
+    end
 end
 
-SpreadGroup:AddToggle("NoSpreadToggle", {
-    Text = "No Spread",
+ESPGroup:AddToggle("ESPToggle", {
+    Text = "ESP",
     Default = false,
-    Tooltip = "Removes weapon bullet spread every frame",
+    Tooltip = "Draw boxes, names, health and distance on enemies",
     Callback = function(v)
-        if v then applyNoSpread() else stopNoSpread() end
+        if v then enableESP() else disableESP() end
     end,
 })
 
-SpreadGroup:AddDivider()
+ESPGroup:AddDivider()
 
-SpreadGroup:AddSlider("SpreadIntensity", {
-    Text = "Intensity",
-    Default = 100,
+ESPGroup:AddButton({
+    Text = "Refresh ESP",
+    Tooltip = "Rebuild all ESP objects",
+    Func = function()
+        for player in pairs(espObjects) do removeESP(player) end
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                local head = getPlayerHead(player)
+                if head then createESP(head, player) end
+            end
+        end
+        Library:Notify("ESP refreshed", 2)
+    end,
+})
+
+ESPInfo:AddLabel("Works with any character type. Finds the Head or any BasePart.", true)
+ESPInfo:AddDivider()
+ESPInfo:AddLabel("Shows name, health (from leaderstats if available), and distance.", true)
+
+-- Aimbot
+
+local AimbotGroup = CombatTab:AddLeftGroupbox("Aimbot")
+local TriggerGroup = CombatTab:AddLeftGroupbox("Triggerbot")
+local AimbotInfo = CombatTab:AddRightGroupbox("Info")
+
+local aimConn = nil
+local aimActive = false
+
+local function getClosestPlayer(fov)
+    local closest, closestDist = nil, fov
+    local mPos = Vector2.new(LocalPlayer:GetMouse().X, LocalPlayer:GetMouse().Y)
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        local head = getPlayerHead(player)
+        if not head then continue end
+
+        local scrPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+        if not onScreen then continue end
+
+        local dist = (mPos - Vector2.new(scrPos.X, scrPos.Y)).Magnitude
+        if dist < closestDist then
+            closest = player
+            closestDist = dist
+        end
+    end
+
+    return closest
+end
+
+local function isPlayerOnScreen(player)
+    local head = getPlayerHead(player)
+    if not head then return false end
+    local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+    return onScreen and pos.Z > 0
+end
+
+local function enableAimbot()
+    if aimActive then return end
+    aimActive = true
+
+    aimConn = RunService.RenderStepped:Connect(function()
+        if not aimActive then return end
+        if not Toggles.AimbotToggle or not Toggles.AimbotToggle.Value then return end
+
+        local target = getClosestPlayer(Options.AimbotFOV and Options.AimbotFOV.Value or 200)
+        if not target then return end
+
+        local head = getPlayerHead(target)
+        if not head then return end
+
+        local char = LocalPlayer.Character
+        if not char then return end
+
+        local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head") or char:FindFirstChildOfClass("BasePart")
+        if not hrp then return end
+
+        local lookVec = (head.Position - hrp.Position).Unit
+        local newCF = CFrame.lookAt(hrp.Position, hrp.Position + lookVec)
+
+        local smoothing = Options.AimbotSmooth and Options.AimbotSmooth.Value or 0
+        if smoothing > 0 then
+            local current = hrp.CFrame
+            local alpha = 1 / (smoothing * 60)
+            newCF = current:Lerp(newCF, alpha)
+        end
+
+        hrp.CFrame = newCF
+    end)
+end
+
+local function disableAimbot()
+    aimActive = false
+    if aimConn then aimConn:Disconnect(); aimConn = nil end
+end
+
+AimbotGroup:AddToggle("AimbotToggle", {
+    Text = "Aimbot",
+    Default = false,
+    Tooltip = "Snap character toward nearest enemy within FOV",
+    Callback = function(v)
+        if v then enableAimbot() else disableAimbot() end
+    end,
+})
+
+AimbotGroup:AddSlider("AimbotFOV", {
+    Text = "FOV",
+    Default = 200,
+    Min = 10,
+    Max = 500,
+    Rounding = 0,
+    Suffix = "px",
+    Tooltip = "Maximum distance from crosshair to target",
+})
+
+AimbotGroup:AddSlider("AimbotSmooth", {
+    Text = "Smoothing",
+    Default = 5,
     Min = 0,
-    Max = 100,
+    Max = 20,
     Rounding = 1,
-    Suffix = "%",
-    Tooltip = "How much spread to remove",
+    Tooltip = "Higher = smoother but slower aim",
+})
+
+-- Triggerbot
+
+local triggerConn = nil
+local triggerActive = false
+
+local function enableTriggerbot()
+    if triggerActive then return end
+    triggerActive = true
+
+    triggerConn = RunService.RenderStepped:Connect(function()
+        if not triggerActive then return end
+        if not Toggles.TriggerToggle or not Toggles.TriggerToggle.Value then return end
+
+        local mouse = LocalPlayer:GetMouse()
+        local target = mouse.Target
+        if not target then return end
+
+        local char = target:FindFirstAncestorOfClass("Model")
+        if not char then return end
+
+        local player = Players:GetPlayerFromCharacter(char)
+        if not player or player == LocalPlayer then return end
+
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid and humanoid.Health <= 0 then return end
+
+        mouse1click()
+        if Options.TriggerDelay then
+            task.wait(Options.TriggerDelay.Value / 1000)
+        end
+    end)
+end
+
+local function disableTriggerbot()
+    triggerActive = false
+    if triggerConn then triggerConn:Disconnect(); triggerConn = nil end
+end
+
+TriggerGroup:AddToggle("TriggerToggle", {
+    Text = "Triggerbot",
+    Default = false,
+    Tooltip = "Auto-fire when crosshair is over an enemy",
     Callback = function(v)
-        spreadIntensity = v
-        if spreadActive then applyNoSpread() end
+        if v then enableTriggerbot() else disableTriggerbot() end
     end,
 })
 
-SpreadGroup:AddDivider()
-
-SpreadGroup:AddButton({
-    Text = "Scan Tool",
-    Tooltip = "Show current tool's spread property",
-    Func = function()
-        local char = game.Players.LocalPlayer and game.Players.LocalPlayer.Character
-        if not char then Library:Notify("No character", 2) return end
-        local tool = char:FindFirstChildOfClass("Tool")
-        if not tool then Library:Notify("No tool equipped", 2) return end
-        local target, prop, val = findSpreadProperties(tool)
-        if target then
-            Library:Notify("Spread: " .. tostring(prop) .. " = " .. tostring(val), 5)
-        else
-            Library:Notify("No spread property found", 3)
-        end
-    end,
+TriggerGroup:AddSlider("TriggerDelay", {
+    Text = "Delay",
+    Default = 0,
+    Min = 0,
+    Max = 500,
+    Rounding = 0,
+    Suffix = "ms",
+    Tooltip = "Delay before firing",
 })
 
-SpreadGroup:AddButton({
-    Text = "Reset Spread",
-    Func = function()
-        stopNoSpread()
-        Toggles.NoSpreadToggle:SetValue(false)
-        Library:Notify("Spread reset", 2)
-    end,
-})
-
-SpreadInfo:AddLabel("Scans your equipped tool for spread properties and zeros them every frame.", true)
-SpreadInfo:AddDivider()
-SpreadInfo:AddLabel("Only works on client-side spread. Server-authoritative spread cannot be modified.", true)
-
--- Scanner
-
-local ScanGroup = ScannerTab:AddLeftGroupbox("Actions")
-local ToolInfoGroup = ScannerTab:AddLeftGroupbox("Tool Info")
-local ScriptGroup = ScannerTab:AddRightGroupbox("Scripts / Events")
-local OutputGroup = ScannerTab:AddRightGroupbox("Scan Output")
-
-local function getTool()
-    local char = game.Players.LocalPlayer and game.Players.LocalPlayer.Character
-    if not char then return nil end
-    return char:FindFirstChildOfClass("Tool") or char:FindFirstChildOfClass("HopperBin")
-end
-
-local function scanToolProperties()
-    local tool = getTool()
-    if not tool then return "No tool equipped" end
-
-    local lines = {"=== TOOL ===", tool:GetFullName(), "Class: " .. tool.ClassName, ""}
-
-    local interested = {
-        "Spread", "BulletSpread", "Accuracy", "Inaccuracy", "SpreadRadius",
-        "MaxSpread", "MinSpread", "ShotSpread", "SpreadAngle",
-        "Damage", "DamageMin", "DamageMax", "FireRate", "FireDelay",
-        "Range", "MaxRange", "BulletsPerShot", "NumberOfBullets",
-        "ReloadTime", "Ammo", "MaxAmmo", "Recoil", "RecoilX", "RecoilY",
-        "AutoFire", "CanAutoFire", "SemiAuto",
-        "Velocity", "BulletVelocity", "ProjectileSpeed",
-        "Handle", "Grip", "GripUp", "GripForward", "GripPos",
-        "ToolTip", "RequiresHandle",
-    }
-
-    for _, prop in ipairs(interested) do
-        local s, v = pcall(function() return tool[prop] end)
-        if s and v ~= nil then
-            table.insert(lines, prop .. " = " .. tostring(v))
-        end
-    end
-
-    table.insert(lines, "")
-    table.insert(lines, "--- Descendants ---")
-    for _, child in ipairs(tool:GetDescendants()) do
-        for _, prop in ipairs(interested) do
-            local s, v = pcall(function() return child[prop] end)
-            if s and v ~= nil then
-                local short = child.Name:sub(1, 30)
-                table.insert(lines, child.ClassName .. "[" .. short .. "]." .. prop .. " = " .. tostring(v))
-            end
-        end
-    end
-
-    local result = table.concat(lines, "\n")
-    return result
-end
-
-local function scanToolRecursive()
-    local tool = getTool()
-    if not tool then return "No tool equipped" end
-
-    local lines = {}
-    local scanned = {}
-
-    local function scanObj(obj, depth)
-        if depth > 5 or scanned[obj] then return end
-        scanned[obj] = true
-
-        local prefix = string.rep("  ", depth)
-        local name = obj.Name or "?"
-        local class = obj.ClassName
-        local props = ""
-
-        if obj:IsA("Script") or obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
-            local len = #obj.Source
-            props = " [" .. tostring(len) .. " chars]"
-        elseif class == "RemoteEvent" or class == "RemoteFunction" or class == "BindableEvent" or class == "BindableFunction" then
-            props = " <REMOTE>"
-        end
-
-        table.insert(lines, prefix .. name .. " [" .. class .. "]" .. props)
-
-        for _, child in ipairs(obj:GetChildren()) do
-            scanObj(child, depth + 1)
-        end
-    end
-
-    scanObj(tool, 0)
-
-    return table.concat(lines, "\n")
-end
-
-local function scanRemotes()
-    local lines = {"RemoteEvent/Function connections:", ""}
-    local tool = getTool()
-    if not tool then return "No tool equipped" end
-
-    for _, child in ipairs(tool:GetDescendants()) do
-        if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
-            table.insert(lines, child:GetFullName() .. " [" .. child.ClassName .. "]")
-        end
-    end
-
-    if #lines == 2 then
-        table.insert(lines, "No remotes found in tool")
-    end
-
-    return table.concat(lines, "\n")
-end
-
-local function scanScriptsSource()
-    local tool = getTool()
-    if not tool then return "No tool equipped" end
-
-    local lines = {}
-    for _, child in ipairs(tool:GetDescendants()) do
-        if child:IsA("LocalScript") or child:IsA("Script") then
-            table.insert(lines, "=== " .. child:GetFullName() .. " ===")
-            local trimmed = child.Source:sub(1, 1000)
-            table.insert(lines, trimmed)
-            table.insert(lines, "")
-        end
-    end
-
-    if #lines == 0 then
-        return "No scripts found in tool"
-    end
-
-    return table.concat(lines, "\n")
-end
-
-local function scanMouseConnections()
-    local tool = getTool()
-    if not tool then return "No tool equipped" end
-
-    local lines = {"Firing mechanism detection:", ""}
-
-    -- Check for common firing patterns
-    local hasActivated = tool:FindFirstChild("Activated") ~= nil
-    local hasDeactivated = tool:FindFirstChild("Deactivated") ~= nil
-    local hasHandle = tool:FindFirstChild("Handle") ~= nil
-
-    if hasActivated then table.insert(lines, "Has Activated event") end
-    if hasDeactivated then table.insert(lines, "Has Deactivated event") end
-    if hasHandle then table.insert(lines, "Has Handle (melee)") end
-
-    -- Scan for MouseButton1 references in scripts
-    for _, child in ipairs(tool:GetDescendants()) do
-        if child:IsA("LocalScript") then
-            if child.Source:find("MouseButton1") or child.Source:find("MouseButton2") then
-                table.insert(lines, "Script " .. child.Name .. " uses MouseButton click")
-            end
-            if child.Source:find("RemoteEvent") or child.Source:find("RemoteFunction") then
-                table.insert(lines, "Script " .. child.Name .. " uses Remote")
-            end
-            if child.Source:find("FireServer") then
-                table.insert(lines, "Script " .. child.Name .. " calls FireServer")
-            end
-        end
-    end
-
-    if #lines == 2 then
-        table.insert(lines, "No firing mechanism detected")
-    end
-
-    return table.concat(lines, "\n")
-end
-
-local scanOutput = OutputGroup:AddLabel("Run a scan â†’", true)
-
-ScanGroup:AddButton({
-    Text = "Scan Tool Properties",
-    Tooltip = "List all weapon stats (spread, damage, rate, etc.)",
-    Func = function()
-        scanOutput:SetText(scanToolProperties())
-    end,
-})
-
-ScanGroup:AddButton({
-    Text = "Scan Full Hierarchy",
-    Tooltip = "Recursively list every object in the tool",
-    Func = function()
-        scanOutput:SetText(scanToolRecursive())
-    end,
-})
-
-ScanGroup:AddDivider()
-
-ScanGroup:AddButton({
-    Text = "Scan Remotes",
-    Tooltip = "Find RemoteEvent/RemoteFunction objects in the tool",
-    Func = function()
-        scanOutput:SetText(scanRemotes())
-    end,
-})
-
-ScanGroup:AddButton({
-    Text = "Scan Scripts Source",
-    Tooltip = "Show source code of all LocalScripts/Scripts in the tool",
-    Func = function()
-        scanOutput:SetText(scanScriptsSource())
-    end,
-})
-
-ScanGroup:AddButton({
-    Text = "Scan Firing Mechanism",
-    Tooltip = "Detect how the weapon fires (MouseButton, Remote, etc.)",
-    Func = function()
-        scanOutput:SetText(scanMouseConnections())
-    end,
-})
-
-ScanGroup:AddDivider()
-
-ScanGroup:AddButton({
-    Text = "Copy Output",
-    Tooltip = "Copy scan results to clipboard",
-    Func = function()
-        local text = scanOutput.TextLabel.Text
-        pcall(setclipboard, text)
-        Library:Notify("Copied to clipboard", 2)
-    end,
-})
-
-ScanGroup:AddButton({
-    Text = "Clear Output",
-    Func = function()
-        scanOutput:SetText("Cleared. Run a scan.")
-    end,
-})
-
-ToolInfoGroup:AddLabel("Equip your weapon, then press a scan button. Results appear on the right.", true)
-ToolInfoGroup:AddDivider()
-ToolInfoGroup:AddLabel("Full Hierarchy shows every child object. Scripts Source dumps all code (max 1000 chars per script).", true)
+AimbotInfo:AddLabel("Aimbot rotates your character toward the nearest enemy within the FOV.", true)
+AimbotInfo:AddDivider()
+AimbotInfo:AddLabel("Triggerbot fires when your mouse is hovering over an enemy model.", true)
 
 -- Watermark & Managers
 
