@@ -15,6 +15,7 @@ local Window = Library:CreateWindow({
 local BypassTab = Window:AddTab("Bypass")
 local CombatTab = Window:AddTab("Combat")
 local VisualTab = Window:AddTab("Visual")
+local ConfigTab = Window:AddTab("Config")
 local SettingsTab = Window:AddTab("Settings")
 
 -- Anti-Cheat Bypass
@@ -933,7 +934,7 @@ ThemeManager:SetIgnoreIndexes({})
 SaveManager:SetFolder("OP1King/configs")
 ThemeManager:SetFolder("OP1King")
 
-SaveManager:BuildConfigSection(SettingsTab)
+SaveManager:BuildConfigSection(ConfigTab)
 ThemeManager:ApplyToTab(SettingsTab)
 
 Window:SelectTab(1)
