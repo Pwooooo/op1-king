@@ -458,6 +458,7 @@ local recoilMultH = 100
 local rcSaveX = 0
 local rcSaveY = 0
 local rcFiring = false
+local rcConn = nil
 
 local function rcSync()
     local cam = workspace.CurrentCamera
@@ -470,34 +471,37 @@ local function rcEnable()
     if recoilHooked then return end
     recoilHooked = true
     rcSync()
-    game:GetService("RunService"):BindToRenderStep("OP1RC", Enum.RenderPriority.Camera.Value + 1, function()
+    rcConn = game:GetService("RunService").RenderStepped:Connect(function()
         if not recoilHooked then return end
-        local cam = workspace.CurrentCamera
-        if not cam then return end
-        local lp = game:GetService("Players").LocalPlayer
-        local char = lp.Character
-        if not char or not char:FindFirstChildOfClass("Humanoid") or char.Humanoid.Health <= 0 then
-            rcSync(); return
-        end
-        local UIS = game:GetService("UserInputService")
-        if UIS.MouseBehavior == Enum.MouseBehavior.Default then rcSync(); return end
-        local delta = UIS:GetMouseDelta()
-        local _, _, realZ = cam.CFrame:ToEulerAnglesYXZ()
-        local flip = (cam.CFrame.UpVector.Y < 0) and -1 or 1
-        local mulV = recoilMultV * 0.01
-        local mulH = recoilMultH * 0.01
-        rcSaveY = rcSaveY - math.rad(delta.X * mulH * 0.48 * flip)
-        rcSaveX = rcSaveX - math.rad(delta.Y * mulV * 0.48)
-        rcSaveX = math.clamp(rcSaveX, math.rad(-85), math.rad(85))
-        cam.CFrame = CFrame.new(cam.CFrame.Position) * CFrame.fromEulerAnglesYXZ(rcSaveX, rcSaveY, realZ)
-        rcFiring = true
+        local ok = pcall(function()
+            local cam = workspace.CurrentCamera
+            if not cam then return end
+            local lp = game:GetService("Players").LocalPlayer
+            local char = lp.Character
+            if not char or not char:FindFirstChildOfClass("Humanoid") or char.Humanoid.Health <= 0 then
+                rcSync(); return
+            end
+            local UIS = game:GetService("UserInputService")
+            if UIS.MouseBehavior == Enum.MouseBehavior.Default then rcSync(); return end
+            local delta = UIS:GetMouseDelta()
+            local _, _, realZ = cam.CFrame:ToEulerAnglesYXZ()
+            local flip = (cam.CFrame.UpVector.Y < 0) and -1 or 1
+            local mulV = recoilMultV * 0.01
+            local mulH = recoilMultH * 0.01
+            rcSaveY = rcSaveY - math.rad(delta.X * mulH * 0.48 * flip)
+            rcSaveX = rcSaveX - math.rad(delta.Y * mulV * 0.48)
+            rcSaveX = math.clamp(rcSaveX, math.rad(-85), math.rad(85))
+            cam.CFrame = CFrame.new(cam.CFrame.Position) * CFrame.fromEulerAnglesYXZ(rcSaveX, rcSaveY, realZ)
+            rcFiring = true
+        end)
+        if not ok then rcSync() end
     end)
     Library:Notify("Recoil Control enabled", 2)
 end
 
 local function rcDisable()
     recoilHooked = false
-    game:GetService("RunService"):UnbindFromRenderStep("OP1RC")
+    if rcConn then rcConn:Disconnect(); rcConn = nil end
     Library:Notify("Recoil Control disabled", 2)
 end
 
