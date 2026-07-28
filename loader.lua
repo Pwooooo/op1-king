@@ -367,6 +367,81 @@ BulletTPGroup:AddDivider()
 
 BulletTPGroup:AddLabel("Hooks Gun.get_shoot_look to return a CFrame pointing at the nearest enemy's head. Works with OP1's client-sided hitscan.", true)
 
+-- Silent Aim (hooks ray_damage on Gun to redirect hitscan while keeping visual normal)
+
+local SilentAimGroup = CombatTab:AddLeftGroupbox("Silent Aim")
+
+local gunModuleSa = nil
+local silentAimHooked = false
+local silentAimOrig = nil
+
+local function getGunModuleSA()
+    if gunModuleSa then return gunModuleSa end
+    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
+    if s then gunModuleSa = m end
+    return gunModuleSa
+end
+
+local function enableSilentAim()
+    if silentAimHooked then return end
+    local mod = getGunModuleSA()
+    if not mod then
+        Library:Notify("Silent Aim: failed to load Gun module", 3)
+        return
+    end
+    -- Save reference to the original ray_damage (inherited from Item base)
+    local s, item = pcall(require, ReplicatedStorage.Modules.Items.Item)
+    if not s or not item.ray_damage then
+        Library:Notify("Silent Aim: failed to load Item module", 3)
+        return
+    end
+    silentAimOrig = item.ray_damage
+    mod.ray_damage = function(p1, origin, direction, filter, ...)
+        if silentAimHooked then
+            local nearest = findNearestEnemy()
+            if nearest then
+                local head = nearest:FindFirstChild("Head") or nearest:FindFirstChildOfClass("BasePart")
+                if head then
+                    direction = (head.Position - origin)
+                end
+            end
+        end
+        return silentAimOrig(p1, origin, direction, filter, ...)
+    end
+    silentAimHooked = true
+    Library:Notify("Silent Aim enabled", 2)
+end
+
+local function disableSilentAim()
+    if not silentAimHooked then return end
+    local mod = getGunModuleSA()
+    if mod then mod.ray_damage = nil end
+    silentAimHooked = false
+    Library:Notify("Silent Aim disabled", 2)
+end
+
+SilentAimGroup:AddToggle("SilentAimToggle", {
+    Text = "Silent Aim",
+    Default = false,
+    Tooltip = "Hooks Gun.ray_damage to redirect hitscan to nearest enemy while keeping visual aim normal",
+    Callback = function(v)
+        if v then enableSilentAim() else disableSilentAim() end
+    end,
+})
+
+SilentAimGroup:AddDivider()
+
+SilentAimGroup:AddButton({
+    Text = "Toggle",
+    Func = function()
+        if silentAimHooked then disableSilentAim() else enableSilentAim() end
+    end,
+})
+
+SilentAimGroup:AddDivider()
+
+SilentAimGroup:AddLabel("Hooks Gun.ray_damage to redirect the hitscan direction to the nearest enemy. The visual firing direction stays unchanged.", true)
+
 Library:SetWatermark("OP1 King")
 
 SaveManager:SetLibrary(Library)
