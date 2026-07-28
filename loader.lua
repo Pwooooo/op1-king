@@ -448,62 +448,76 @@ SilentAimGroup:AddButton({
     end,
 })
 
--- Recoil Control (RenderStepped — decomposes game's camera delta, scales per-axis, then reapplies)
+-- Recoil Control (hooks State.get on each gun's recoil_up / recoil_side — intercepted synchronously at read time)
 
 local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Control")
 
 local recoilHooked = false
 local recoilMultV = 100
 local recoilMultH = 100
-local rcSaveX = 0
-local rcSaveY = 0
-local rcConn = nil
+local rcPatchHb = nil
 
-local function rcSync()
-    local cam = workspace.CurrentCamera
-    if not cam then return end
-    local x, y = cam.CFrame:ToEulerAnglesYXZ()
-    rcSaveX, rcSaveY = x, y
+local function rcPatchOne(item)
+    if not item or not item.states then return end
+    local up = item.states.recoil_up
+    local side = item.states.recoil_side
+    if up and type(up) == "table" and type(up.get) == "function" then
+        local orig = up.get
+        if not up._rcHooked then
+            up.get = function(self, ...)
+                local base = orig(self, ...)
+                if recoilHooked then
+                    local ns = getgenv()._op1_ns_recoil and 0 or 1
+                    return base * recoilMultV * 0.01 * ns
+                end
+                return base
+            end
+            up._rcHooked = true
+        end
+    end
+    if side and type(side) == "table" and type(side.get) == "function" then
+        local orig = side.get
+        if not side._rcHooked then
+            side.get = function(self, ...)
+                local base = orig(self, ...)
+                if recoilHooked then
+                    local ns = getgenv()._op1_ns_recoil and 0 or 1
+                    return base * recoilMultH * 0.01 * ns
+                end
+                return base
+            end
+            side._rcHooked = true
+        end
+    end
+end
+
+local function rcPatchItems()
+    local s, items = pcall(require, ReplicatedStorage.Modules.Items)
+    if not s or not items then return end
+    for _, item in pairs(items.items) do
+        rcPatchOne(item)
+    end
 end
 
 local function rcEnable()
     if recoilHooked then return end
     recoilHooked = true
-    rcSync()
-    rcConn = game:GetService("RunService").RenderStepped:Connect(function()
-        if not recoilHooked then return end
-        local cam = workspace.CurrentCamera
-        if not cam then return end
-        local lp = game:GetService("Players").LocalPlayer
-        local char = lp.Character
-        if not char or not char:FindFirstChildOfClass("Humanoid") or char.Humanoid.Health <= 0 then
-            rcSync(); return
+    rcPatchItems()
+    -- Hook create_item so future guns get patched
+    local s, items = pcall(require, ReplicatedStorage.Modules.Items)
+    if s and items and type(items.create_item) == "function" then
+        local orig = items.create_item
+        items.create_item = function(p1)
+            local result = orig(p1)
+            rcPatchOne(result)
+            return result
         end
-        local UIS = game:GetService("UserInputService")
-        if UIS.MouseBehavior == Enum.MouseBehavior.Default then rcSync(); return end
-        local delta = UIS:GetMouseDelta()
-        local flip = (cam.CFrame.UpVector.Y < 0) and -1 or 1
-        rcSaveY = rcSaveY - math.rad(delta.X * 0.48 * flip)
-        rcSaveX = rcSaveX - math.rad(delta.Y * 0.48)
-        rcSaveX = math.clamp(rcSaveX, math.rad(-85), math.rad(85))
-        local pos = cam.CFrame.Position
-        local _, _, realZ = cam.CFrame:ToEulerAnglesYXZ()
-        local ourRot = CFrame.new(pos) * CFrame.fromEulerAnglesYXZ(rcSaveX, rcSaveY, realZ)
-        local gameCF = cam.CFrame
-        local diff = ourRot:Inverse() * gameCF
-        local dx, dy, dz = diff:ToEulerAnglesYXZ()
-        local mulV = recoilMultV * 0.01
-        local mulH = recoilMultH * 0.01
-        local ns = getgenv()._op1_ns_recoil and 0 or 1
-        local scaled = CFrame.fromEulerAnglesYXZ(dx * mulV * ns, dy * mulH * ns, dz)
-        cam.CFrame = ourRot * scaled
-    end)
+    end
     Library:Notify("Recoil Control enabled", 2)
 end
 
 local function rcDisable()
     recoilHooked = false
-    if rcConn then rcConn:Disconnect(); rcConn = nil end
     Library:Notify("Recoil Control disabled", 2)
 end
 
