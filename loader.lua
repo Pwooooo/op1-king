@@ -208,6 +208,96 @@ SpreadInfo:AddLabel("Scans character, backpack, and all children recursively for
 SpreadInfo:AddDivider()
 SpreadInfo:AddLabel("Works with any character type. Not guaranteed in all games.", true)
 
+-- Bullet TP
+
+local BulletTPGroup = CombatTab:AddLeftGroupbox("Bullet TP")
+
+local bulletTPConn = nil
+local bulletTPActive = false
+
+local function getClosestTarget()
+    local myPos = LocalPlayer.Character and LocalPlayer.Character:GetPivot().p
+    if not myPos then return nil end
+    local closest, closestDist = nil, math.huge
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        local char = player.Character
+        if not char then continue end
+        local head = char:FindFirstChild("Head") or char:FindFirstChildOfClass("BasePart")
+        if not head then continue end
+        local dist = (head.Position - myPos).Magnitude
+        if dist < closestDist then
+            closest = head
+            closestDist = dist
+        end
+    end
+    return closest
+end
+
+local function enableBulletTP()
+    if bulletTPActive then return end
+    bulletTPActive = true
+
+    local firedBullets = {}
+
+    workspace.DescendantAdded:Connect(function(desc)
+        if not bulletTPActive then return end
+        if not Toggles.BulletTPToggle or not Toggles.BulletTPToggle.Value then return end
+        if not desc:IsA("BasePart") then return end
+
+        local char = LocalPlayer.Character
+        if not char then return end
+
+        task.wait(0.05)
+
+        if desc.Velocity.Magnitude > 10 then
+            local target = getClosestTarget()
+            if target then
+                desc.CFrame = target.CFrame
+                desc.Velocity = (target.Position - desc.Position).Unit * desc.Velocity.Magnitude
+            end
+        end
+    end)
+
+    bulletTPConn = RunService.Heartbeat:Connect(function()
+        if not bulletTPActive then return end
+        if not Toggles.BulletTPToggle or not Toggles.BulletTPToggle.Value then return end
+
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player == LocalPlayer then continue end
+            local char = player.Character
+            if not char then continue end
+            for _, part in ipairs(char:GetChildren()) do
+                if part:IsA("BasePart") and part.Velocity.Magnitude > 30 then
+                    local target = getClosestTarget()
+                    if target then
+                        part.CFrame = target.CFrame
+                        part.Velocity = (target.Position - part.Position).Unit * part.Velocity.Magnitude
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function disableBulletTP()
+    bulletTPActive = false
+    if bulletTPConn then bulletTPConn:Disconnect(); bulletTPConn = nil end
+end
+
+BulletTPGroup:AddToggle("BulletTPToggle", {
+    Text = "Bullet TP",
+    Default = false,
+    Tooltip = "Teleports projectiles/bullets to the nearest enemy",
+    Callback = function(v)
+        if v then enableBulletTP() else disableBulletTP() end
+    end,
+})
+
+BulletTPGroup:AddDivider()
+
+BulletTPGroup:AddLabel("Detects high-velocity parts and teleports them to the closest enemy head.", true)
+
 Library:SetWatermark("OP1 King")
 
 SaveManager:SetLibrary(Library)
