@@ -648,73 +648,125 @@ TracerGroup:AddDivider()
 
 TracerGroup:AddLabel("Hooks Gun.trail to create bright visible beam tracers from the shot origin to the hit point. The game's default subtle trails are replaced.", true)
 
--- No Screen Shake (hooks Gun.recoil_function to prevent camera shake on fire)
+-- No Screen Shake (stops all screenshaking — recoil, WindShake, bobbing)
 
 local NoShakeGroup = VisualTab:AddLeftGroupbox("No Screen Shake")
 
-local gunModuleNs = nil
 local noShakeHooked = false
 local origRecoilFunc = nil
-local patchedItems = {}
+local patchedShakeItems = {}
+local windShakePaused = false
+local bobHb = nil
 
-local function getGunModuleNS()
-    if gunModuleNs then return gunModuleNs end
+local function getGunModuleRaw()
     local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
-    if s then gunModuleNs = m end
-    return gunModuleNs
+    return s and m
 end
 
-local function patchExistingItems()
-    patchedItems = {}
-    local s, itemsMod = pcall(require, ReplicatedStorage.Modules.Items)
-    if not s then return end
-    for _, gunItem in pairs(itemsMod.items) do
-        if gunItem and type(gunItem.recoil) == "function" then
-            patchedItems[gunItem] = gunItem.recoil
-            gunItem.recoil = function(gun, player)
-                if player and player.values and player.values.cframes then
-                    player.values.cframes:get("camera"):remove_offset("shoot")
-                end
-            end
-        end
-    end
+local function getItemsModule()
+    local s, m = pcall(require, ReplicatedStorage.Modules.Items)
+    return s and m
 end
 
-local function restorePatchedItems()
-    for item, orig in pairs(patchedItems) do
-        if item and item.recoil then
-            item.recoil = orig
-        end
-    end
-    patchedItems = {}
+local function getWindShake()
+    local s, m = pcall(require, ReplicatedStorage.Modules.WindShake)
+    return s and m
 end
 
-local function enableNoShake()
-    if noShakeHooked then return end
-    local mod = getGunModuleNS()
-    if not mod then
-        Library:Notify("No Screen Shake: failed to load Gun module", 3)
-        return
-    end
+local function patchGunRecoil()
+    local mod = getGunModuleRaw()
+    if not mod then return false end
     origRecoilFunc = mod.recoil_function
     mod.recoil_function = function(p1, p2)
         if p2 and p2.values and p2.values.cframes then
             p2.values.cframes:get("camera"):remove_offset("shoot")
         end
     end
-    patchExistingItems()
+    local itemsMod = getItemsModule()
+    if itemsMod then
+        for _, item in pairs(itemsMod.items) do
+            if item and type(item.recoil) == "function" then
+                patchedShakeItems[item] = item.recoil
+                item.recoil = function(gun, player)
+                    if player and player.values and player.values.cframes then
+                        player.values.cframes:get("camera"):remove_offset("shoot")
+                    end
+                end
+            end
+        end
+    end
+    return true
+end
+
+local function restoreGunRecoil()
+    local mod = getGunModuleRaw()
+    if mod and origRecoilFunc then
+        mod.recoil_function = origRecoilFunc
+    end
+    for item, orig in pairs(patchedShakeItems) do
+        if item and item.recoil then
+            item.recoil = orig
+        end
+    end
+    patchedShakeItems = {}
+    origRecoilFunc = nil
+end
+
+local function pauseWindShake()
+    local ws = getWindShake()
+    if ws and not windShakePaused then
+        pcall(ws.Pause, ws)
+        windShakePaused = true
+    end
+end
+
+local function resumeWindShake()
+    local ws = getWindShake()
+    if ws and windShakePaused then
+        pcall(ws.Resume, ws)
+        windShakePaused = false
+    end
+end
+
+local function noopBobbing()
+    if bobHb then return end
+    bobHb = game:GetService("RunService").Heartbeat:Connect(function()
+        local s, charMod = pcall(require, game.ReplicatedStorage.Modules.Character)
+        if not s then return end
+        local ok, char = pcall(charMod.get_char)
+        if not ok or not char or not char.values then return end
+        local bob = char.values.bob_cframe
+        if bob and type(bob) == "table" and bob.Value then
+            bob.Value = CFrame.new()
+        end
+    end)
+end
+
+local function stopBobbing()
+    if bobHb then
+        bobHb:Disconnect()
+        bobHb = nil
+    end
+end
+
+local function enableNoShake()
+    if noShakeHooked then return end
+    local ok = patchGunRecoil()
+    if not ok then
+        Library:Notify("No Screen Shake: failed to load Gun module", 3)
+        return
+    end
+    pauseWindShake()
+    noopBobbing()
     noShakeHooked = true
-    Library:Notify("No Screen Shake enabled", 2)
+    Library:Notify("No Screen Shake enabled (recoil + wind + bobbing)", 2)
 end
 
 local function disableNoShake()
     if not noShakeHooked then return end
-    local mod = getGunModuleNS()
-    if mod and origRecoilFunc then
-        mod.recoil_function = origRecoilFunc
-    end
-    restorePatchedItems()
-    origRecoilFunc = nil
+    restoreGunRecoil()
+    resumeWindShake()
+    stopBobbing()
     noShakeHooked = false
     Library:Notify("No Screen Shake disabled", 2)
 end
@@ -722,7 +774,7 @@ end
 NoShakeGroup:AddToggle("NoShakeToggle", {
     Text = "No Screen Shake",
     Default = false,
-    Tooltip = "Hooks Gun.recoil_function to prevent camera shake when firing",
+    Tooltip = "Neutralizes recoil camera shake, pauses WindShake (explosions / world shake), and stops head bobbing",
     Callback = function(v)
         if v then enableNoShake() else disableNoShake() end
     end,
@@ -739,7 +791,7 @@ NoShakeGroup:AddButton({
 
 NoShakeGroup:AddDivider()
 
-NoShakeGroup:AddLabel("Hooks Gun.recoil_function to nullify the camera recoil and shake effect. The firing animation still plays but the camera stays steady.", true)
+NoShakeGroup:AddLabel("Stops all screenshaking: hooks Gun.recoil_function (camera shake on fire), pauses WindShake (explosion / world shake), forces bob_cframe to neutral (head bobbing).", true)
 
 Library:SetWatermark("OP1 King")
 
