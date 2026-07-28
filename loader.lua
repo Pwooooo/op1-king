@@ -448,92 +448,81 @@ SilentAimGroup:AddButton({
     end,
 })
 
--- Recoil Control (overrides camera CFrame at Camera.Value+1 with tracked mouse rotation + scaled recoil residual)
+-- Recoil Macro (tracks mouse rotation independently, pulls down while shooting to counter recoil)
 
-local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Control")
+local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Macro")
 
-local recoilHooked = false
-local recoilMultV = 100
-local recoilMultH = 100
-local rcYaw = 0
-local rcPitch = 0
+local recoilActive = false
+local macroPullV = 0.002
+local macroPullH = 0.001
+local macroYaw = 0
+local macroPitch = 0
 
-local function rcScaleShoot()
-    local ns = getgenv()._op1_ns_recoil and 0 or 1
-    local mulV = recoilMultV * 0.01 * ns
-    local mulH = recoilMultH * 0.01 * ns
-    local delta = game:GetService("UserInputService"):GetMouseDelta()
+local function macroStep()
     local cam = workspace.CurrentCamera
     if not cam then return end
-    -- track independent mouse rotation
-    rcYaw = rcYaw - delta.X * 0.001
-    rcPitch = math.clamp(rcPitch - delta.Y * 0.001, -math.pi / 2.1, math.pi / 2.1)
-    -- read game's camera CFrame (set at Camera.Value, includes game mouse + recoil)
-    local gameCF = cam.CFrame
-    local gamePos = gameCF.Position
-    local myCF = CFrame.fromEulerAnglesYXZ(rcYaw, rcPitch, 0)
-    -- residual = what the game added beyond my tracking (recoil + tracking differences)
-    local residual = myCF:Inverse() * gameCF
-    -- scale residual angles
-    local ry, rx, rz = residual:ToEulerAnglesYXZ()
-    local scaled = CFrame.fromEulerAnglesYXZ(ry * mulH, rx * mulV, rz)
-    -- set final camera CF: preserve game position, apply my tracking + scaled residual
-    cam.CFrame = CFrame.new(gamePos) * (myCF * scaled).Rotation
+    local delta = game:GetService("UserInputService"):GetMouseDelta()
+    macroYaw = macroYaw - delta.X * 0.001
+    macroPitch = math.clamp(macroPitch - delta.Y * 0.001, -math.pi / 2.1, math.pi / 2.1)
+    -- pull down while shooting
+    if game:GetService("UserInputService"):IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+        macroPitch = macroPitch + macroPullV
+        macroYaw = macroYaw + macroPullH
+    end
+    cam.CFrame = CFrame.new(cam.CFrame.Position) * CFrame.fromEulerAnglesYXZ(macroYaw, macroPitch, 0)
 end
 
-local function rcEnable()
-    if recoilHooked then return end
+local function macroEnable()
+    if recoilActive then return end
     local cam = workspace.CurrentCamera
     if cam then
-        local y, x, z = cam.CFrame:ToEulerAnglesYXZ()
-        rcYaw = y
-        rcPitch = x
+        local y, x = cam.CFrame:ToEulerAnglesYXZ()
+        macroYaw = y; macroPitch = x
     end
-    recoilHooked = true
-    game:GetService("RunService"):BindToRenderStep("OP1RC", Enum.RenderPriority.Camera.Value + 1, rcScaleShoot)
-    Library:Notify("Recoil Control enabled", 2)
+    recoilActive = true
+    game:GetService("RunService"):BindToRenderStep("OP1RC", Enum.RenderPriority.Camera.Value + 1, macroStep)
+    Library:Notify("Recoil Macro enabled", 2)
 end
 
-local function rcDisable()
-    recoilHooked = false
+local function macroDisable()
+    recoilActive = false
     game:GetService("RunService"):UnbindFromRenderStep("OP1RC")
-    Library:Notify("Recoil Control disabled", 2)
+    Library:Notify("Recoil Macro disabled", 2)
 end
-
 RecoilGroup:AddToggle("RecoilToggle", {
-    Text = "Recoil Control",
+    Text = "Recoil Macro",
     Default = false,
-    Tooltip = "Scales camera CFrameValue 'shoot' offset at Camera.Value-1 priority before camera render. 0% = no recoil.",
+    Tooltip = "Overrides camera rotation at Camera.Value+1, pulls down while mouse1 is held to counter recoil.",
     Callback = function(v)
-        if v then rcEnable() else rcDisable() end
+        if v then macroEnable() else macroDisable() end
     end,
 })
 
 RecoilGroup:AddDivider()
 
 RecoilGroup:AddSlider("RecoilV", {
-    Text = "Vertical",
-    Default = 100,
+    Text = "Vertical Pull",
+    Default = 50,
     Min = 0,
     Max = 100,
     Rounding = 1,
     Suffix = "%",
-    Tooltip = "Intercepts camera CFrameValue 'shoot' offset at Camera.Value-1 priority, scales angles by slider %. 0% = no recoil, 100% = full game recoil.",
+    Tooltip = "How hard to pull down while shooting. Increase until recoil is neutralized.",
     Callback = function(v)
-        recoilMultV = v
+        macroPullV = v * 0.0001
     end,
 })
 
 RecoilGroup:AddSlider("RecoilH", {
-    Text = "Horizontal",
-    Default = 100,
+    Text = "Horizontal Pull",
+    Default = 0,
     Min = 0,
     Max = 100,
     Rounding = 1,
     Suffix = "%",
-    Tooltip = "Intercepts camera CFrameValue 'shoot' offset at Camera.Value-1 priority, scales angles by slider %. 0% = no recoil, 100% = full game recoil.",
+    Tooltip = "Horizontal counter-pull (positive = right). Adjust if your weapon drifts sideways.",
     Callback = function(v)
-        recoilMultH = v
+        macroPullH = v * 0.00005
     end,
 })
 
@@ -542,7 +531,7 @@ RecoilGroup:AddDivider()
 RecoilGroup:AddButton({
     Text = "Toggle",
     Func = function()
-        if recoilHooked then rcDisable() else rcEnable() end
+        if recoilActive then macroDisable() else macroEnable() end
     end,
 })
 
