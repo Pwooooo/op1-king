@@ -25,32 +25,23 @@ local bypassHooked = false
 local oldByte = nil
 local bypassHeal = nil
 
-local function tryStack(level)
-    for attempt = level, level + 3 do
-        local ok, stk = pcall(getstack, attempt, 1)
-        if ok and type(stk) == "table" and stk[2] then
-            pcall(setstack, attempt, 4, #stk[2])
-            return stk[2]
-        end
-    end
-    return nil
-end
-
 local function enableBypass()
     if bypassHooked then return end
 
-    local ok, hook = pcall(hookfunction, string.byte, newcclosure(function(s, i, j)
+    local ok, hook = pcall(hookfunction, string.byte, newcclosure(function(a0, a1)
         local cOk, isCaller = pcall(checkcaller)
-        if (cOk and isCaller) or type(s) ~= 'string' then
-            return oldByte(s, i, j)
+        if (cOk and isCaller) or type(a0) ~= 'string' or not (a0:sub(1, 1) == '{' and a0:sub(-1) == '}') then
+            return oldByte(a0, a1)
         end
-        if s:sub(1, 1) == '{' and s:sub(-1) == '}' then
-            local restored = tryStack(3)
-            if restored then
-                return oldByte(restored, i or 1, j)
-            end
+
+        local ok1, luraph = pcall(getstack, 3, 1)
+        if ok1 and type(luraph) == "table" and luraph[2] then
+            luraph[1] = luraph[2]
+            luraph[5] = #luraph[2]
+            pcall(setstack, 3, 4, luraph[5])
+            return oldByte(luraph[1], a1)
         end
-        return oldByte(s, i, j)
+        return oldByte(a0, a1)
     end))
 
     if not ok then
