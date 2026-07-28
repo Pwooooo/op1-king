@@ -470,14 +470,15 @@ local function rcScaleShoot()
     rcPitch = math.clamp(rcPitch - delta.Y * 0.001, -math.pi / 2.1, math.pi / 2.1)
     -- read game's camera CFrame (set at Camera.Value, includes game mouse + recoil)
     local gameCF = cam.CFrame
+    local gamePos = gameCF.Position
     local myCF = CFrame.fromEulerAnglesYXZ(rcYaw, rcPitch, 0)
     -- residual = what the game added beyond my tracking (recoil + tracking differences)
     local residual = myCF:Inverse() * gameCF
     -- scale residual angles
     local ry, rx, rz = residual:ToEulerAnglesYXZ()
     local scaled = CFrame.fromEulerAnglesYXZ(ry * mulH, rx * mulV, rz)
-    -- set final camera CF: my tracking + scaled residual
-    cam.CFrame = myCF * scaled
+    -- set final camera CF: preserve game position, apply my tracking + scaled residual
+    cam.CFrame = CFrame.new(gamePos) * (myCF * scaled).Rotation
 end
 
 local function rcEnable()
