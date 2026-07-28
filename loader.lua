@@ -648,6 +648,99 @@ TracerGroup:AddDivider()
 
 TracerGroup:AddLabel("Hooks Gun.trail to create bright visible beam tracers from the shot origin to the hit point. The game's default subtle trails are replaced.", true)
 
+-- No Screen Shake (hooks Gun.recoil_function to prevent camera shake on fire)
+
+local NoShakeGroup = VisualTab:AddLeftGroupbox("No Screen Shake")
+
+local gunModuleNs = nil
+local noShakeHooked = false
+local origRecoilFunc = nil
+local patchedItems = {}
+
+local function getGunModuleNS()
+    if gunModuleNs then return gunModuleNs end
+    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
+    if s then gunModuleNs = m end
+    return gunModuleNs
+end
+
+local function patchExistingItems()
+    patchedItems = {}
+    local s, itemsMod = pcall(require, ReplicatedStorage.Modules.Items)
+    if not s then return end
+    for _, gunItem in pairs(itemsMod.items) do
+        if gunItem and type(gunItem.recoil) == "function" then
+            patchedItems[gunItem] = gunItem.recoil
+            gunItem.recoil = function(gun, player)
+                if player and player.values and player.values.cframes then
+                    player.values.cframes:get("camera"):remove_offset("shoot")
+                end
+            end
+        end
+    end
+end
+
+local function restorePatchedItems()
+    for item, orig in pairs(patchedItems) do
+        if item and item.recoil then
+            item.recoil = orig
+        end
+    end
+    patchedItems = {}
+end
+
+local function enableNoShake()
+    if noShakeHooked then return end
+    local mod = getGunModuleNS()
+    if not mod then
+        Library:Notify("No Screen Shake: failed to load Gun module", 3)
+        return
+    end
+    origRecoilFunc = mod.recoil_function
+    mod.recoil_function = function(p1, p2)
+        if p2 and p2.values and p2.values.cframes then
+            p2.values.cframes:get("camera"):remove_offset("shoot")
+        end
+    end
+    patchExistingItems()
+    noShakeHooked = true
+    Library:Notify("No Screen Shake enabled", 2)
+end
+
+local function disableNoShake()
+    if not noShakeHooked then return end
+    local mod = getGunModuleNS()
+    if mod and origRecoilFunc then
+        mod.recoil_function = origRecoilFunc
+    end
+    restorePatchedItems()
+    origRecoilFunc = nil
+    noShakeHooked = false
+    Library:Notify("No Screen Shake disabled", 2)
+end
+
+NoShakeGroup:AddToggle("NoShakeToggle", {
+    Text = "No Screen Shake",
+    Default = false,
+    Tooltip = "Hooks Gun.recoil_function to prevent camera shake when firing",
+    Callback = function(v)
+        if v then enableNoShake() else disableNoShake() end
+    end,
+})
+
+NoShakeGroup:AddDivider()
+
+NoShakeGroup:AddButton({
+    Text = "Toggle",
+    Func = function()
+        if noShakeHooked then disableNoShake() else enableNoShake() end
+    end,
+})
+
+NoShakeGroup:AddDivider()
+
+NoShakeGroup:AddLabel("Hooks Gun.recoil_function to nullify the camera recoil and shake effect. The firing animation still plays but the camera stays steady.", true)
+
 Library:SetWatermark("OP1 King")
 
 SaveManager:SetLibrary(Library)
