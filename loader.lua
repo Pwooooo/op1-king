@@ -448,56 +448,72 @@ SilentAimGroup:AddButton({
     end,
 })
 
--- Recoil Control (RenderStepped — lerps between our recoil-free rotation and game's natural CFrame)
+-- Recoil Control (hooks Gun.t.recoil_function + patches existing ovs via Items.items)
 
 local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Control")
 
 local recoilHooked = false
 local recoilMultV = 100
 local recoilMultH = 100
-local rcSaveX = 0
-local rcSaveY = 0
-local rcConn = nil
+local rcOrigFn = nil
+local rcHookedMod = nil
+local rcBase = {}
 
-local function rcSync()
-    local cam = workspace.CurrentCamera
-    if not cam then return end
-    local x, y = cam.CFrame:ToEulerAnglesYXZ()
-    rcSaveX, rcSaveY = x, y
+local function makeRcHook()
+    return function(p1, p2)
+        if recoilHooked and p1 and p1.states then
+            if not rcBase[p1] then
+                rcBase[p1] = {
+                    up = p1.states.recoil_up:get(),
+                    side = p1.states.recoil_side:get()
+                }
+            end
+            local base = rcBase[p1]
+            local ns = getgenv()._op1_ns_recoil and 0 or 1
+            local mulV = recoilMultV * 0.01 * ns
+            local mulH = recoilMultH * 0.01 * ns
+            p1.states.recoil_up:set(base.up * mulV)
+            p1.states.recoil_side:set(base.side * mulH)
+        end
+        return rcOrigFn(p1, p2)
+    end
 end
 
 local function rcEnable()
     if recoilHooked then return end
     recoilHooked = true
-    rcSync()
-    rcConn = game:GetService("RunService").RenderStepped:Connect(function()
-        if not recoilHooked then return end
-        local cam = workspace.CurrentCamera
-        if not cam then return end
-        local lp = game:GetService("Players").LocalPlayer
-        local char = lp.Character
-        if not char or not char:FindFirstChildOfClass("Humanoid") or char.Humanoid.Health <= 0 then
-            rcSync(); return
+
+    -- Hook class table for future guns (ov captures it at init via metatable)
+    local sMod, mod = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
+    if sMod and mod then
+        rcOrigFn = mod.recoil_function
+        mod.recoil_function = makeRcHook()
+        rcHookedMod = mod
+    end
+
+    -- Patch existing guns' ov.func directly
+    local sItems, items = pcall(require, ReplicatedStorage.Modules.Items)
+    if sItems and items then
+        local hook = makeRcHook()
+        for _, item in pairs(items.items) do
+            if item and type(item.recoil) == "table" and item.recoil.func then
+                rcOrigFn = rcOrigFn or item.recoil.func
+                item.recoil.func = hook
+            end
         end
-        local UIS = game:GetService("UserInputService")
-        if UIS.MouseBehavior == Enum.MouseBehavior.Default then rcSync(); return end
-        local delta = UIS:GetMouseDelta()
-        local flip = (cam.CFrame.UpVector.Y < 0) and -1 or 1
-        rcSaveY = rcSaveY - math.rad(delta.X * 0.48 * flip)
-        rcSaveX = rcSaveX - math.rad(delta.Y * 0.48)
-        rcSaveX = math.clamp(rcSaveX, math.rad(-85), math.rad(85))
-        local pos = cam.CFrame.Position
-        local _, _, realZ = cam.CFrame:ToEulerAnglesYXZ()
-        local noRecoilCF = CFrame.new(pos) * CFrame.fromEulerAnglesYXZ(rcSaveX, rcSaveY, realZ)
-        local t = math.max(recoilMultV, recoilMultH) * 0.01
-        cam.CFrame = noRecoilCF:Lerp(cam.CFrame, t)
-    end)
+    end
+
     Library:Notify("Recoil Control enabled", 2)
 end
 
 local function rcDisable()
     recoilHooked = false
-    if rcConn then rcConn:Disconnect(); rcConn = nil end
+    if rcHookedMod and rcOrigFn then
+        rcHookedMod.recoil_function = rcOrigFn
+    end
+    rcHookedMod = nil
+    rcOrigFn = nil
+    rcBase = {}
     Library:Notify("Recoil Control disabled", 2)
 end
 
@@ -519,7 +535,7 @@ RecoilGroup:AddSlider("RecoilV", {
     Max = 100,
     Rounding = 1,
     Suffix = "%",
-    Tooltip = "0% = no recoil, 100% = full game recoil. Bleed-between both sliders' max.",
+    Tooltip = "0% = no recoil, 100% = full game recoil. Scales recoil_up state before recoil_function reads it.",
     Callback = function(v)
         recoilMultV = v
     end,
@@ -532,7 +548,7 @@ RecoilGroup:AddSlider("RecoilH", {
     Max = 100,
     Rounding = 1,
     Suffix = "%",
-    Tooltip = "0% = no recoil, 100% = full game recoil. Bleed-between both sliders' max.",
+    Tooltip = "0% = no recoil, 100% = full game recoil. Scales recoil_side state before recoil_function reads it.",
     Callback = function(v)
         recoilMultH = v
     end,
