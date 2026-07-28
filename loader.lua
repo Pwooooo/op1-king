@@ -448,76 +448,47 @@ SilentAimGroup:AddButton({
     end,
 })
 
--- Recoil Control (hooks State.get on each gun's recoil_up / recoil_side — intercepted synchronously at read time)
+-- Recoil Control (scales camera CFrameValue "shoot" offset directly before camera render)
 
 local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Control")
 
 local recoilHooked = false
 local recoilMultV = 100
 local recoilMultH = 100
-local rcPatchHb = nil
 
-local function rcPatchOne(item)
-    if not item or not item.states then return end
-    local up = item.states.recoil_up
-    local side = item.states.recoil_side
-    if up and type(up) == "table" and type(up.get) == "function" then
-        local orig = up.get
-        if not up._rcHooked then
-            up.get = function(self, ...)
-                local base = orig(self, ...)
-                if recoilHooked then
-                    local ns = getgenv()._op1_ns_recoil and 0 or 1
-                    return base * recoilMultV * 0.01 * ns
-                end
-                return base
-            end
-            up._rcHooked = true
-        end
-    end
-    if side and type(side) == "table" and type(side.get) == "function" then
-        local orig = side.get
-        if not side._rcHooked then
-            side.get = function(self, ...)
-                local base = orig(self, ...)
-                if recoilHooked then
-                    local ns = getgenv()._op1_ns_recoil and 0 or 1
-                    return base * recoilMultH * 0.01 * ns
-                end
-                return base
-            end
-            side._rcHooked = true
-        end
-    end
-end
-
-local function rcPatchItems()
+local function rcScaleShoot()
     local s, items = pcall(require, ReplicatedStorage.Modules.Items)
     if not s or not items then return end
+    local ns = getgenv()._op1_ns_recoil and 0 or 1
+    local mulV = recoilMultV * 0.01 * ns
+    local mulH = recoilMultH * 0.01 * ns
     for _, item in pairs(items.items) do
-        rcPatchOne(item)
+        if item.owner and item.owner.values then
+            local cf = item.owner.values.cframes
+            if cf and cf.parts then
+                local cam = cf.parts["camera"]
+                if cam and cam.offsets then
+                    local shoot = cam.offsets["shoot"]
+                    if shoot and shoot.Value then
+                        local mx, my, mz = shoot.Value:ToEulerAnglesYXZ()
+                        shoot.Value = CFrame.fromEulerAnglesYXZ(mx * mulV, my * mulH, mz)
+                    end
+                end
+            end
+        end
     end
 end
 
 local function rcEnable()
     if recoilHooked then return end
     recoilHooked = true
-    rcPatchItems()
-    -- Hook create_item so future guns get patched
-    local s, items = pcall(require, ReplicatedStorage.Modules.Items)
-    if s and items and type(items.create_item) == "function" then
-        local orig = items.create_item
-        items.create_item = function(p1)
-            local result = orig(p1)
-            rcPatchOne(result)
-            return result
-        end
-    end
+    game:GetService("RunService"):BindToRenderStep("OP1RC", Enum.RenderPriority.Camera.Value - 1, rcScaleShoot)
     Library:Notify("Recoil Control enabled", 2)
 end
 
 local function rcDisable()
     recoilHooked = false
+    game:GetService("RunService"):UnbindFromRenderStep("OP1RC")
     Library:Notify("Recoil Control disabled", 2)
 end
 
