@@ -448,48 +448,48 @@ SilentAimGroup:AddButton({
     end,
 })
 
--- Recoil Control (finds equipped weapon via character Tools, accesses CFrameValue "shoot" offset through Items:get_item)
+-- Recoil Control (overrides camera CFrame at Camera.Value+1 with tracked mouse rotation + scaled recoil residual)
 
 local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Control")
 
 local recoilHooked = false
 local recoilMultV = 100
 local recoilMultH = 100
+local rcYaw = 0
+local rcPitch = 0
 
 local function rcScaleShoot()
     local ns = getgenv()._op1_ns_recoil and 0 or 1
     local mulV = recoilMultV * 0.01 * ns
     local mulH = recoilMultH * 0.01 * ns
-    local plr = game:GetService("Players").LocalPlayer
-    local char = plr and plr.Character
-    if not char then return end
-    -- find the equipped weapon (Tool in character)
-    local weapon = nil
-    for _, v in pairs(char:GetChildren()) do
-        if v:IsA("Tool") then
-            weapon = v
-            break
-        end
-    end
-    if not weapon then return end
-    local s, items = pcall(require, ReplicatedStorage.Modules.Items)
-    if not s or not items then return end
-    local item = items.get_item(weapon)
-    if not item or not item.owner or not item.owner.values then return end
-    local cf = item.owner.values.cframes
-    if not cf or not cf.parts then return end
-    local cam = cf.parts["camera"]
-    if not cam or not cam.offsets then return end
-    local shoot = cam.offsets["shoot"]
-    if not shoot or not shoot.Value then return end
-    local mx, my, mz = shoot.Value:ToEulerAnglesYXZ()
-    shoot.Value = CFrame.fromEulerAnglesYXZ(mx * mulV, my * mulH, mz)
+    local delta = game:GetService("UserInputService"):GetMouseDelta()
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    -- track independent mouse rotation
+    rcYaw = rcYaw - delta.X * 0.001
+    rcPitch = math.clamp(rcPitch - delta.Y * 0.001, -math.pi / 2.1, math.pi / 2.1)
+    -- read game's camera CFrame (set at Camera.Value, includes game mouse + recoil)
+    local gameCF = cam.CFrame
+    local myCF = CFrame.fromEulerAnglesYXZ(rcYaw, rcPitch, 0)
+    -- residual = what the game added beyond my tracking (recoil + tracking differences)
+    local residual = myCF:Inverse() * gameCF
+    -- scale residual angles
+    local ry, rx, rz = residual:ToEulerAnglesYXZ()
+    local scaled = CFrame.fromEulerAnglesYXZ(ry * mulH, rx * mulV, rz)
+    -- set final camera CF: my tracking + scaled residual
+    cam.CFrame = myCF * scaled
 end
 
 local function rcEnable()
     if recoilHooked then return end
+    local cam = workspace.CurrentCamera
+    if cam then
+        local y, x, z = cam.CFrame:ToEulerAnglesYXZ()
+        rcYaw = y
+        rcPitch = x
+    end
     recoilHooked = true
-    game:GetService("RunService"):BindToRenderStep("OP1RC", Enum.RenderPriority.Camera.Value - 1, rcScaleShoot)
+    game:GetService("RunService"):BindToRenderStep("OP1RC", Enum.RenderPriority.Camera.Value + 1, rcScaleShoot)
     Library:Notify("Recoil Control enabled", 2)
 end
 
