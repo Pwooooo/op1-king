@@ -448,53 +448,66 @@ SilentAimGroup:AddButton({
     end,
 })
 
--- Recoil Control (hooks Gun.recoil_function to scale vertical/horizontal recoil)
+-- Recoil Control (continuously forces recoil states every frame to scaled values)
 
 local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Control")
 
-local gunModuleRc = nil
 local recoilHooked = false
-local origShootRC = nil
 local recoilMultV = 100
 local recoilMultH = 100
+local rcHb = nil
+local rcBaseValues = {}
+local rcCharMod = nil
 
-local function getGunModuleRC()
-    if gunModuleRc then return gunModuleRc end
-    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
-    if s then gunModuleRc = m end
-    return gunModuleRc
+local function rcForceLoop()
+    if rcHb then return end
+    local ok, cm = pcall(require, game.ReplicatedStorage.Modules.Character)
+    if ok then rcCharMod = cm end
+    rcHb = game:GetService("RunService").Heartbeat:Connect(function()
+        if not recoilHooked or not rcCharMod then return end
+        local got, char = pcall(rcCharMod.get_char)
+        if not got or not char or not char.values then return end
+        local gun = char.values.equipped
+        if not gun or not gun.states then return end
+        local states = gun.states
+        if not states.recoil_up or not states.recoil_side then return end
+        local okU, curUp = pcall(states.recoil_up.get, states.recoil_up)
+        local okS, curSide = pcall(states.recoil_side.get, states.recoil_side)
+        if not okU or not okS then return end
+        if not rcBaseValues[gun] then
+            rcBaseValues[gun] = { up = curUp, side = curSide }
+        end
+        local base = rcBaseValues[gun]
+        local ns = getgenv()._op1_ns_recoil and 0 or 1
+        local scaledUp = base.up * recoilMultV * 0.01 * ns
+        local scaledSide = base.side * recoilMultH * 0.01 * ns
+        if curUp ~= scaledUp then
+            pcall(states.recoil_up.set, states.recoil_up, scaledUp)
+        end
+        if curSide ~= scaledSide then
+            pcall(states.recoil_side.set, states.recoil_side, scaledSide)
+        end
+    end)
+end
+
+local function rcStopLoop()
+    if rcHb then
+        rcHb:Disconnect()
+        rcHb = nil
+    end
 end
 
 local function enableRecoilControl()
     if recoilHooked then return end
-    local mod = getGunModuleRC()
-    if not mod then
-        Library:Notify("Recoil Control: failed to load Gun module", 3)
-        return
-    end
-
-    origShootRC = mod.shoot
-    mod.shoot = function(p1, p2, p3, p4)
-        if recoilHooked and p1 and p1.states then
-            local ns = getgenv()._op1_ns_recoil and 0 or 1
-            p1.states.recoil_up:set(p1.states.recoil_up:get() * recoilMultV * 0.01 * ns)
-            p1.states.recoil_side:set(p1.states.recoil_side:get() * recoilMultH * 0.01 * ns)
-        end
-        return origShootRC(p1, p2, p3, p4)
-    end
-
     recoilHooked = true
+    rcForceLoop()
     Library:Notify("Recoil Control enabled", 2)
 end
 
 local function disableRecoilControl()
-    if not recoilHooked then return end
-    local mod = getGunModuleRC()
-    if mod and origShootRC then
-        mod.shoot = origShootRC
-        origShootRC = nil
-    end
     recoilHooked = false
+    rcStopLoop()
+    rcBaseValues = {}
     Library:Notify("Recoil Control disabled", 2)
 end
 
