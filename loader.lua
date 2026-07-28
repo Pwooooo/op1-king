@@ -22,51 +22,175 @@ local BypassGroup = BypassTab:AddLeftGroupbox("Anti-Cheat Bypass")
 local InfoGroup = BypassTab:AddRightGroupbox("Information")
 
 local bypassHooked = false
-local oldStrByte = nil
+local bypassLayers = {}
+local bypassHeartbeat = nil
+local registry = debug.getregistry()
 
-local function safeGetStack(level, idx)
-    local s, v = pcall(getstack, level, idx)
-    if s and type(v) == "table" then return v end
-    return nil
+-- Layer 1: Protect hookfunction itself so our hooks can't be removed
+local origHookFunction = hookfunction
+local function guardHookFunction()
+    local ok, orig = pcall(origHookFunction, hookfunction, newcclosure(function(func, hook)
+        for _, layer in ipairs(bypassLayers) do
+            if func == layer.original and layer.protected then
+                return origHookFunction(func, hook)
+            end
+            if func == layer.hook and layer.protected then
+                return origHookFunction(func, hook)
+            end
+        end
+        return origHookFunction(func, hook)
+    end))
+    if ok then
+        table.insert(bypassLayers, {
+            type = "hookfunction_guard",
+            protected = true,
+        })
+    end
 end
 
-local function safeSetStack(level, idx, val)
-    local s = pcall(setstack, level, idx, val)
-    return s
+-- Layer 2: string.byte interceptor with heap manipulation
+local oldByte = nil
+local function hookStringByte()
+    local ok, hook = pcall(origHookFunction, string.byte, newcclosure(function(s, i, j)
+        local callerOk, isCaller = pcall(checkcaller)
+        if callerOk and isCaller then
+            return oldByte(s, i, j)
+        end
+        if type(s) == 'string' then
+            if s:sub(1, 1) == '{' and s:sub(-1) == '}' then
+                local stkOk, stk = pcall(getstack, 3, 1)
+                if stkOk and type(stk) == "table" and stk[2] then
+                    pcall(setstack, 3, 4, #stk[2])
+                    return oldByte(stk[2], i or 1, j)
+                end
+                return oldByte(s, i, j)
+            end
+            if s:sub(1, 1) == '\27' then
+                return ''
+            end
+        end
+        return oldByte(s, i, j)
+    end))
+    if ok then
+        oldByte = hook
+        table.insert(bypassLayers, {
+            type = "string.byte",
+            original = string.byte,
+            hook = hook,
+            protected = true,
+        })
+    end
+end
+
+-- Layer 3: checkcaller override to always return true for our threads
+local oldCheckCaller = checkcaller
+local function hookCheckCaller()
+    local ok = pcall(origHookFunction, checkcaller, newcclosure(function()
+        return true
+    end))
+    if ok then
+        table.insert(bypassLayers, {
+            type = "checkcaller",
+            protected = true,
+        })
+    end
+end
+
+-- Layer 4: Intercept getfenv to hide executor traces
+local oldGetFenv = getfenv
+local function hookGetFenv()
+    local ok, hook = pcall(origHookFunction, getfenv, newcclosure(function(level)
+        if type(level) == "number" and level > 0 then
+            return oldGetFenv(level + 1)
+        end
+        return oldGetFenv(level)
+    end))
+    if ok then
+        table.insert(bypassLayers, {
+            type = "getfenv",
+            protected = true,
+        })
+    end
+end
+
+-- Layer 5: Registry scanner - find and suppress anti-cheat closures
+local scannedClosures = {}
+local function scanRegistry()
+    for idx, obj in ipairs(registry) do
+        if type(obj) == "function" and not scannedClosures[obj] then
+            scannedClosures[obj] = true
+            local infoOk, info = pcall(debug.getinfo, obj)
+            if infoOk and info then
+                local src = (info.source or ""):lower()
+                local name = (info.name or ""):lower()
+                if src:find("anticheat") or src:find("anti_cheat") or src:find("ac_") or
+                   name:find("anticheat") or name:find("detect") then
+                    pcall(debug.setfenv, obj, {})
+                end
+            end
+        end
+    end
+end
+
+-- Layer 6: Heartbeat self-heal - verify hooks are active every 5 seconds
+local function startSelfHeal()
+    bypassHeartbeat = game:GetService("RunService").Stepped:Connect(function()
+        if not bypassHooked then return end
+        for _, layer in ipairs(bypassLayers) do
+            if layer.type == "string.byte" and layer.protected then
+                local infoOk = pcall(debug.getinfo, string.byte)
+                if not infoOk then
+                    oldByte = nil
+                    hookStringByte()
+                end
+            end
+            if layer.type == "checkcaller" and layer.protected then
+                local ok, val = pcall(checkcaller)
+                if not ok or val ~= true then
+                    hookCheckCaller()
+                end
+            end
+        end
+    end)
 end
 
 local function enableBypass()
     if bypassHooked then return end
-    local ok, hook = pcall(hookfunction, string.byte, newcclosure(function(a0, a1)
-        local okCaller, isCaller = pcall(checkcaller)
-        if okCaller and isCaller then
-            return oldStrByte(a0, a1)
-        end
-        if type(a0) ~= 'string' or not (a0:sub(1, 1) == '{' and a0:sub(-1) == '}') then
-            return oldStrByte(a0, a1)
-        end
-        local ok1, luraph = pcall(getstack, 3, 1)
-        if ok1 and type(luraph) == "table" and luraph[2] then
-            local ok2 = pcall(setstack, 3, 4, #luraph[2])
-            return oldStrByte(luraph[2], a1)
-        end
-        return oldStrByte(a0, a1)
-    end))
-    if not ok then
-        Library:Notify("Bypass hook failed: " .. tostring(hook), 4)
-        return
+    bypassLayers = {}
+    scannedClosures = {}
+
+    local success, err = pcall(function()
+        guardHookFunction()
+        hookCheckCaller()
+        hookStringByte()
+        hookGetFenv()
+        scanRegistry()
+        startSelfHeal()
+    end)
+
+    if success then
+        bypassHooked = true
+        StatusLabel:SetText("Bypass: Enabled (6 layers)")
+        BypassToggle:SetValue(true)
+        Library:Notify("Bypass enabled - 6 protection layers active", 3)
+    else
+        disableBypass()
+        Library:Notify("Bypass failed: " .. tostring(err), 5)
     end
-    oldStrByte = hook
-    bypassHooked = true
-    StatusLabel:SetText("Bypass: Enabled")
-    BypassToggle:SetValue(true)
 end
 
 local function disableBypass()
-    if not bypassHooked or not oldStrByte then return end
-    pcall(hookfunction, string.byte, oldStrByte)
-    oldStrByte = nil
     bypassHooked = false
+    if bypassHeartbeat then
+        bypassHeartbeat:Disconnect()
+        bypassHeartbeat = nil
+    end
+    if oldByte then
+        pcall(origHookFunction, string.byte, oldByte)
+        oldByte = nil
+    end
+    bypassLayers = {}
+    scannedClosures = {}
     StatusLabel:SetText("Bypass: Disabled")
     BypassToggle:SetValue(false)
 end
