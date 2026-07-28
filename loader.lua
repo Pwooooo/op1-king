@@ -455,6 +455,7 @@ local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Control")
 local gunModuleRc = nil
 local recoilHooked = false
 local origRecoilFunc_RC = nil
+local origSendShootRC = nil
 local patchedItemsRC = {}
 local recoilMultV = 100
 local recoilMultH = 100
@@ -464,6 +465,18 @@ local function getGunModuleRC()
     local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
     if s then gunModuleRc = m end
     return gunModuleRc
+end
+
+local function patchSendShootRecoil(p1, p2, ...)
+    if not p1 or not p1.states then return end
+    local u = p1.states.recoil_up:get()
+    local s = p1.states.recoil_side:get()
+    local ns = getgenv()._op1_ns_recoil and 0 or 1
+    p1.states.recoil_up:set(u * recoilMultV * 0.01 * ns)
+    p1.states.recoil_side:set(s * recoilMultH * 0.01 * ns)
+    origSendShootRC(p1, p2, ...)
+    p1.states.recoil_up:set(u)
+    p1.states.recoil_side:set(s)
 end
 
 local function enableRecoilControl()
@@ -477,35 +490,39 @@ local function enableRecoilControl()
     if not getgenv()._op1_recoil_orig then
         getgenv()._op1_recoil_orig = mod.recoil_function
     end
-    local origModuleFunc = getgenv()._op1_recoil_orig
 
-    local function recoilWrapper(p1, p2)
+    mod.recoil_function = function(p1, p2)
         if not recoilHooked or not p1 or not p1.states then
-            return origModuleFunc(p1, p2)
+            return getgenv()._op1_recoil_orig(p1, p2)
         end
         local u = p1.states.recoil_up:get()
         local s = p1.states.recoil_side:get()
         local ns = getgenv()._op1_ns_recoil and 0 or 1
         p1.states.recoil_up:set(u * recoilMultV * 0.01 * ns)
         p1.states.recoil_side:set(s * recoilMultH * 0.01 * ns)
-        origModuleFunc(p1, p2)
+        getgenv()._op1_recoil_orig(p1, p2)
         p1.states.recoil_up:set(u)
         p1.states.recoil_side:set(s)
     end
 
-    mod.recoil_function = recoilWrapper
-
-    local itemsMod = getItemsModule()
-    if itemsMod then
-        for _, item in pairs(itemsMod.items) do
-            if item and item.recoil and type(item.recoil) == "table" and item.recoil.func then
-                patchedItemsRC[item] = item.recoil.func
-                item.recoil.func = recoilWrapper
-            end
+    -- Also hook send_shoot directly (called through class method lookup — works for ALL existing guns)
+    origSendShootRC = mod.send_shoot
+    mod.send_shoot = function(p1, p2, ...)
+        if recoilHooked and p1 and p1.states then
+            local u = p1.states.recoil_up:get()
+            local s = p1.states.recoil_side:get()
+            local ns = getgenv()._op1_ns_recoil and 0 or 1
+            p1.states.recoil_up:set(u * recoilMultV * 0.01 * ns)
+            p1.states.recoil_side:set(s * recoilMultH * 0.01 * ns)
+            origSendShootRC(p1, p2, ...)
+            p1.states.recoil_up:set(u)
+            p1.states.recoil_side:set(s)
+        else
+            origSendShootRC(p1, p2, ...)
         end
     end
 
-    origRecoilFunc_RC = origModuleFunc
+    origRecoilFunc_RC = getgenv()._op1_recoil_orig
     recoilHooked = true
     Library:Notify("Recoil Control enabled", 2)
 end
@@ -513,12 +530,16 @@ end
 local function disableRecoilControl()
     if not recoilHooked then return end
     local mod = getGunModuleRC()
-    if mod and origRecoilFunc_RC then
+    if mod then
         mod.recoil_function = origRecoilFunc_RC
+        if origSendShootRC then
+            mod.send_shoot = origSendShootRC
+            origSendShootRC = nil
+        end
     end
-    for item, origFunc in pairs(patchedItemsRC) do
+    for item, _ in pairs(patchedItemsRC) do
         if item and item.recoil then
-            item.recoil.func = origFunc
+            item.recoil.func = origRecoilFunc_RC
         end
     end
     patchedItemsRC = {}
@@ -575,19 +596,41 @@ RecoilGroup:AddButton({
 
 RecoilGroup:AddDivider()
 
--- No Gun Movement (hooks Gun.running to prevent weapon movement while moving)
+-- No Gun Movement (hooks Gun.running and neutralizes walking bob to prevent weapon movement)
 
 local NoMoveGroup = VisualTab:AddLeftGroupbox("No Gun Movement")
 
 local gunModuleNm = nil
 local oldRunning = nil
 local noMoveHooked = false
+local nmBobHb = nil
 
 local function getGunModuleNM()
     if gunModuleNm then return gunModuleNm end
     local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
     if s then gunModuleNm = m end
     return gunModuleNm
+end
+
+local function nmBobbing()
+    if nmBobHb then return end
+    nmBobHb = game:GetService("RunService").Heartbeat:Connect(function()
+        local ok, cm = pcall(require, game.ReplicatedStorage.Modules.Character)
+        if not ok then return end
+        local got, char = pcall(cm.get_char)
+        if not got or not char or not char.values then return end
+        local bob = char.values.bob_cframe
+        if bob and type(bob) == "table" and bob.Value then
+            bob.Value = CFrame.new()
+        end
+    end)
+end
+
+local function stopNmBobbing()
+    if nmBobHb then
+        nmBobHb:Disconnect()
+        nmBobHb = nil
+    end
 end
 
 local function enableNoMove()
@@ -604,6 +647,7 @@ local function enableNoMove()
         end
         return oldRunning(p1, p2, p3)
     end
+    nmBobbing()
     noMoveHooked = true
     Library:Notify("No Gun Movement enabled", 2)
 end
@@ -615,6 +659,7 @@ local function disableNoMove()
         mod.running = oldRunning
     end
     oldRunning = nil
+    stopNmBobbing()
     noMoveHooked = false
     Library:Notify("No Gun Movement disabled", 2)
 end
