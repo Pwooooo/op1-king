@@ -876,4 +876,6 @@ ThemeManager:ApplyToTab(SettingsTab)
 
 Window:SelectTab(1)
 
-Library:Notify("OP1 King loaded. Bypass is OFF.", 4)
+Library:Notify("OP1 King loaded. Bypass auto-enabled.", 4)
+
+enableBypass()
