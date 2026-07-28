@@ -1,34 +1,34 @@
 --[[
     OP1 King - Anti-Cheat Bypass
-    Fluent UI Loader
+    LinoriaLib UI
 ]]
 
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/SaveManager.lua"))()
+local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/ThemeManager.lua"))()
 
-local Window = Fluent:CreateWindow({
+getgenv().SaveManager = SaveManager
+getgenv().ThemeManager = ThemeManager
+
+local Window = Library:CreateWindow({
     Title = "OP1 King",
-    SubTitle = "anti-cheat bypass",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
-    Acrylic = true,
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.LeftControl
+    Center = true,
+    AutoShow = true,
+    Size = UDim2.fromOffset(550, 500),
 })
 
-local Tabs = {
-    Main = Window:AddTab({ Title = "Main", Icon = "shield" }),
-    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
-}
+local MainTab = Window:AddTab("Bypass")
+local SettingsTab = Window:AddTab("Settings")
 
-local Options = Fluent.Options
+local BypassGroup = MainTab:AddLeftGroupbox("Anti-Cheat Bypass")
+local InfoGroup = MainTab:AddRightGroupbox("Information")
+local StatusGroup = MainTab:AddLeftGroupbox("Status")
 
-local bypassEnabled = false
+local bypassHooked = false
 local oldStrByte = nil
 
 local function enableBypass()
-    if bypassEnabled then return end
+    if bypassHooked then return end
 
     oldStrByte = hookfunction(string.byte, newcclosure(function(a0, a1)
         if (checkcaller() or type(a0) ~= 'string' or not (a0:sub(1, 1) == '{' and a0:sub(-1) == '}')) then
@@ -43,86 +43,81 @@ local function enableBypass()
         return oldStrByte(luraph[1], a1)
     end))
 
-    bypassEnabled = true
+    bypassHooked = true
+    StatusLabel:SetText("Bypass: Enabled")
+    BypassToggle:SetValue(true)
 end
 
 local function disableBypass()
-    if not bypassEnabled or not oldStrByte then return end
+    if not bypassHooked or not oldStrByte then return end
     hookfunction(string.byte, oldStrByte)
     oldStrByte = nil
-    bypassEnabled = false
+    bypassHooked = false
+    StatusLabel:SetText("Bypass: Disabled")
+    BypassToggle:SetValue(false)
 end
 
-do
-    Tabs.Main:AddParagraph({
-        Title = "Anti-Cheat Bypass",
-        Content = "Hooks string.byte to swap stack data when the anti-cheat checks payload formatting."
-    })
+local StatusLabel = StatusGroup:AddLabel("Bypass: Disabled")
+StatusGroup:AddDivider()
 
-    local BypassToggle = Tabs.Main:AddToggle("BypassToggle", {
-        Title = "Enable Bypass",
-        Default = false,
-        Description = "Toggle the anti-cheat bypass on/off"
-    })
-
-    BypassToggle:OnChanged(function()
-        if Options.BypassToggle.Value then
+local BypassToggle = BypassGroup:AddToggle("BypassToggle", {
+    Text = "Enable Bypass",
+    Default = false,
+    Tooltip = "Hooks string.byte to swap stack data on anti-cheat checks",
+    Callback = function(v)
+        if v then
             enableBypass()
-            Fluent:Notify({
-                Title = "OP1 King",
-                Content = "Anti-cheat bypass enabled.",
-                Duration = 3
-            })
         else
             disableBypass()
-            Fluent:Notify({
-                Title = "OP1 King",
-                Content = "Anti-cheat bypass disabled.",
-                Duration = 3
-            })
         end
-    end)
+    end,
+})
 
-    Tabs.Main:AddButton({
-        Title = "Enable Now",
-        Description = "Force-enable the bypass immediately",
-        Callback = function()
-            Options.BypassToggle:SetValue(true)
-        end
-    })
+BypassGroup:AddDivider()
 
-    Tabs.Main:AddButton({
-        Title = "Disable Now",
-        Description = "Force-disable the bypass immediately",
-        Callback = function()
-            Options.BypassToggle:SetValue(false)
-        end
-    })
+BypassGroup:AddButton({
+    Text = "Enable Now",
+    Func = function()
+        enableBypass()
+        Library:Notify("Bypass enabled", 2)
+    end,
+})
 
-    Tabs.Main:AddButton({
-        Title = "Rejoin Server",
-        Description = "Rejoin the current server",
-        Callback = function()
-            game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, game.Players.LocalPlayer)
-        end
-    })
-end
+BypassGroup:AddButton({
+    Text = "Disable Now",
+    Func = function()
+        disableBypass()
+        Library:Notify("Bypass disabled", 2)
+    end,
+})
 
-SaveManager:SetLibrary(Fluent)
-InterfaceManager:SetLibrary(Fluent)
+BypassGroup:AddDivider()
+
+BypassGroup:AddButton({
+    Text = "Rejoin Server",
+    Func = function()
+        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, game.Players.LocalPlayer)
+    end,
+})
+
+InfoGroup:AddLabel("This bypass hooks string.byte to detect when the anti-cheat checks payload formatting and swaps the stack data to evade detection.", true)
+
+InfoGroup:AddDivider()
+
+InfoGroup:AddLabel("Toggle the bypass ON/OFF using the toggle above. ON by default is NOT recommended â€” enable only when needed.", true)
+
+Library:SetWatermark("OP1 King")
+
+SaveManager:SetLibrary(Library)
+ThemeManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({})
-InterfaceManager:SetFolder("OP1King")
+ThemeManager:SetIgnoreIndexes({})
 SaveManager:SetFolder("OP1King/configs")
-InterfaceManager:BuildInterfaceSection(Tabs.Settings)
-SaveManager:BuildConfigSection(Tabs.Settings)
+ThemeManager:SetFolder("OP1King")
+
+SaveManager:BuildConfigSection(SettingsTab)
+ThemeManager:ApplyToTab(SettingsTab)
 
 Window:SelectTab(1)
 
-Fluent:Notify({
-    Title = "OP1 King",
-    Content = "Loaded.",
-    Duration = 5
-})
-
-SaveManager:LoadAutoloadConfig()
+Library:Notify("OP1 King loaded. Bypass is OFF.", 4)
