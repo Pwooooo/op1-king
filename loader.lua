@@ -454,9 +454,7 @@ local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Control")
 
 local gunModuleRc = nil
 local recoilHooked = false
-local origRecoilFunc_RC = nil
-local origSendShootRC = nil
-local patchedItemsRC = {}
+local origShootRC = nil
 local recoilMultV = 100
 local recoilMultH = 100
 
@@ -467,18 +465,6 @@ local function getGunModuleRC()
     return gunModuleRc
 end
 
-local function patchSendShootRecoil(p1, p2, ...)
-    if not p1 or not p1.states then return end
-    local u = p1.states.recoil_up:get()
-    local s = p1.states.recoil_side:get()
-    local ns = getgenv()._op1_ns_recoil and 0 or 1
-    p1.states.recoil_up:set(u * recoilMultV * 0.01 * ns)
-    p1.states.recoil_side:set(s * recoilMultH * 0.01 * ns)
-    origSendShootRC(p1, p2, ...)
-    p1.states.recoil_up:set(u)
-    p1.states.recoil_side:set(s)
-end
-
 local function enableRecoilControl()
     if recoilHooked then return end
     local mod = getGunModuleRC()
@@ -487,42 +473,16 @@ local function enableRecoilControl()
         return
     end
 
-    if not getgenv()._op1_recoil_orig then
-        getgenv()._op1_recoil_orig = mod.recoil_function
-    end
-
-    mod.recoil_function = function(p1, p2)
-        if not recoilHooked or not p1 or not p1.states then
-            return getgenv()._op1_recoil_orig(p1, p2)
-        end
-        local u = p1.states.recoil_up:get()
-        local s = p1.states.recoil_side:get()
-        local ns = getgenv()._op1_ns_recoil and 0 or 1
-        p1.states.recoil_up:set(u * recoilMultV * 0.01 * ns)
-        p1.states.recoil_side:set(s * recoilMultH * 0.01 * ns)
-        getgenv()._op1_recoil_orig(p1, p2)
-        p1.states.recoil_up:set(u)
-        p1.states.recoil_side:set(s)
-    end
-
-    -- Also hook send_shoot directly (called through class method lookup — works for ALL existing guns)
-    origSendShootRC = mod.send_shoot
-    mod.send_shoot = function(p1, p2, ...)
+    origShootRC = mod.shoot
+    mod.shoot = function(p1, p2, p3, p4)
         if recoilHooked and p1 and p1.states then
-            local u = p1.states.recoil_up:get()
-            local s = p1.states.recoil_side:get()
             local ns = getgenv()._op1_ns_recoil and 0 or 1
-            p1.states.recoil_up:set(u * recoilMultV * 0.01 * ns)
-            p1.states.recoil_side:set(s * recoilMultH * 0.01 * ns)
-            origSendShootRC(p1, p2, ...)
-            p1.states.recoil_up:set(u)
-            p1.states.recoil_side:set(s)
-        else
-            origSendShootRC(p1, p2, ...)
+            p1.states.recoil_up:set(p1.states.recoil_up:get() * recoilMultV * 0.01 * ns)
+            p1.states.recoil_side:set(p1.states.recoil_side:get() * recoilMultH * 0.01 * ns)
         end
+        return origShootRC(p1, p2, p3, p4)
     end
 
-    origRecoilFunc_RC = getgenv()._op1_recoil_orig
     recoilHooked = true
     Library:Notify("Recoil Control enabled", 2)
 end
@@ -530,20 +490,10 @@ end
 local function disableRecoilControl()
     if not recoilHooked then return end
     local mod = getGunModuleRC()
-    if mod then
-        mod.recoil_function = origRecoilFunc_RC
-        if origSendShootRC then
-            mod.send_shoot = origSendShootRC
-            origSendShootRC = nil
-        end
+    if mod and origShootRC then
+        mod.shoot = origShootRC
+        origShootRC = nil
     end
-    for item, _ in pairs(patchedItemsRC) do
-        if item and item.recoil then
-            item.recoil.func = origRecoilFunc_RC
-        end
-    end
-    patchedItemsRC = {}
-    origRecoilFunc_RC = nil
     recoilHooked = false
     Library:Notify("Recoil Control disabled", 2)
 end
