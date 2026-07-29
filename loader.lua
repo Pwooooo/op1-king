@@ -17,6 +17,7 @@ local CombatTab = Window:AddTab("Combat")
 local VisualTab = Window:AddTab("Visual")
 local ConfigTab = Window:AddTab("Config")
 local SettingsTab = Window:AddTab("Settings")
+local ShadersTab = Window:AddTab("Shaders")
 
 -- Anti-Cheat Bypass
 
@@ -831,6 +832,85 @@ NoShakeGroup:AddButton({
     Func = function()
         if noShakeHooked then disableNoShake() else enableNoShake() end
     end,
+})
+
+-- Shaders tab: Glossy OP1
+
+local ShadersGroup = ShadersTab:AddLeftGroupbox("Glossy OP1 Shaders")
+
+local glossyOn = false
+local glossyHbs = {}
+
+local function toggleGlossy(v)
+	glossyOn = v
+	local lighting = game:GetService("Lighting")
+	if v then
+		lighting.Brightness = 2.5
+		lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+		lighting.Ambient = Color3.new(1, 1, 1)
+		lighting.GlobalShadows = false
+		lighting.FogEnd = 1e5
+		for _, p in pairs(workspace:GetDescendants()) do
+			if p:IsA("BasePart") and not p:IsA("Terrain") then
+				p.Material = Enum.Material.ForceField
+			end
+		end
+		glossyHbs.desc = workspace.DescendantAdded:Connect(function(p)
+			task.wait()
+			if p:IsA("BasePart") and not p:IsA("Terrain") then
+				p.Material = Enum.Material.ForceField
+			end
+		end)
+		glossyHbs.char = Players.LocalPlayer.CharacterAdded:Connect(function()
+			task.wait(0.5)
+			for _, p in pairs(workspace:GetDescendants()) do
+				if p:IsA("BasePart") and not p:IsA("Terrain") then
+					p.Material = Enum.Material.ForceField
+				end
+			end
+		end)
+		glossyHbs.fps = game:GetService("RunService").RenderStepped:Connect(function()
+			lighting.Brightness = 2.5
+			lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+			lighting.Ambient = Color3.new(1, 1, 1)
+			lighting.GlobalShadows = false
+		end)
+	else
+		lighting.Brightness = 1
+		lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
+		lighting.Ambient = Color3.new()
+		lighting.GlobalShadows = true
+		lighting.FogEnd = 1e5
+		for _, p in pairs(workspace:GetDescendants()) do
+			if p:IsA("BasePart") and not p:IsA("Terrain") then
+				p.Material = Enum.Material.SmoothPlastic
+			end
+		end
+		for _, c in pairs(glossyHbs) do pcall(c.Disconnect, c) end
+		glossyHbs = {}
+	end
+end
+
+ShadersGroup:AddToggle("GlossyToggle", {
+	Text = "Glossy OP1",
+	Default = false,
+	Tooltip = "ForceField material + max brightness on all parts",
+	Callback = function(v) toggleGlossy(v) end,
+})
+
+ShadersGroup:AddDivider()
+
+ShadersGroup:AddSlider("FOVSlider", {
+	Text = "FOV",
+	Default = 90,
+	Min = 60,
+	Max = 120,
+	Rounding = 1,
+	Suffix = " deg",
+	Tooltip = "Camera field of view",
+	Callback = function(v)
+		pcall(function() workspace.CurrentCamera.FieldOfView = v end)
+	end,
 })
 
 Library:SetWatermark("OP1 King")
