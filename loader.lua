@@ -44,8 +44,6 @@ do
     local RS = game:GetService("ReplicatedStorage")
     local Players = game:GetService("Players")
     local LP = Players.LocalPlayer
-    _G.__BTP_ENABLED = false
-    local enabled = false
     local hooked = false
 
     local function findTarget()
@@ -74,7 +72,7 @@ do
         if not ok then return false end
         local orig = mod.get_shoot_look
         mod.get_shoot_look = function(s)
-            if enabled then
+            if _G.__BTP_ENABLED then
                 local t = findTarget()
                 if t then
                     local head = t:FindFirstChild("Head") or t:FindFirstChildOfClass("BasePart")
@@ -104,9 +102,8 @@ do
     UIS.InputBegan:Connect(function(input, gpe)
         if gpe then return end
         if input.KeyCode == Enum.KeyCode.B then
-            enabled = not enabled
-            _G.__BTP_ENABLED = enabled
-            Library:Notify("Bullet TP " .. (enabled and "enabled" or "disabled"), 2)
+            _G.__BTP_ENABLED = not _G.__BTP_ENABLED
+            Library:Notify("Bullet TP " .. (_G.__BTP_ENABLED and "enabled" or "disabled"), 2)
         end
     end)
 end
