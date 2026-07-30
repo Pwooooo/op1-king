@@ -341,6 +341,29 @@ local nrVKeep = 0
 local nrHKeep = 0
 local nrOldShoot = nil
 
+local function blockRecoilOffsets(a0, a1)
+    if not a1 or not a1.values or not a1.values.cframes then return end
+    local camCF = a1.values.cframes:get("camera")
+    if camCF and not camCF._nrCamHooked then
+        camCF._nrCamHooked = true
+        local origSet = camCF.set_offset
+        camCF.set_offset = function(self, name, val)
+            if nrEnabled and name == "shoot" then
+                -- Still record offset so code doesn't break, but clear it
+                local off = origSet(self, name, CFrame.new())
+                if off then off.Value = CFrame.new() end
+                return off
+            end
+            return origSet(self, name, val)
+        end
+        local origRem = camCF.remove_offset
+        camCF.remove_offset = function(self, name)
+            if nrEnabled and name == "shoot" then return end
+            return origRem(self, name)
+        end
+    end
+end
+
 local function hookGunRecoilSafe(gun)
     if not gun or gun._nrPatched or not gun.recoil then return end
     gun._nrPatched = true
@@ -365,6 +388,7 @@ local function enableNoRecoil()
         mod.shoot = function(a0, a1, a2, a3)
             if nrEnabled and a0 then
                 hookGunRecoilSafe(a0)
+                blockRecoilOffsets(a0, a1)
                 if a0.states then
                     if nrVKeep < 1 then
                         local ok, v = pcall(a0.states.recoil_up.get, a0.states.recoil_up)
