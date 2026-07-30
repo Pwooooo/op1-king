@@ -647,6 +647,5 @@ ThemeManager:SetFolder("OP1King")
 SaveManager:BuildConfigSection(ConfigTab)
 ThemeManager:ApplyToTab(SettingsTab)
 
-Window:SelectTab(1)
 Library:Notify("OP1 King loaded. Bypass auto-enabled.", 4)
 enableBypass()
