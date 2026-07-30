@@ -340,15 +340,19 @@ local nrEnabled = false
 local nrVKeep = 0
 local nrHKeep = 0
 local nrOldShoot = nil
+local nrCharValues = nil
 local nrCamCF = nil
 local nrRSConn = nil
 
-local function nrClearShootOffset()
+local function nrClearRecoil()
     if nrCamCF then
         pcall(function()
             local off = nrCamCF:get_offset("shoot")
             if off then off.Value = CFrame.new() end
         end)
+    end
+    if nrCharValues and nrCharValues.old_cam_render then
+        nrCharValues.old_cam_render = CFrame.new()
     end
 end
 
@@ -362,8 +366,13 @@ local function enableNoRecoil()
     if mod then
         nrOldShoot = mod.shoot
         mod.shoot = function(a0, a1, a2, a3)
-            if nrEnabled and a1 and a1.values and a1.values.cframes then
-                nrCamCF = a1.values.cframes:get("camera")
+            if nrEnabled then
+                if a1 and a1.values then
+                    nrCharValues = a1.values
+                    if a1.values.cframes then
+                        nrCamCF = a1.values.cframes:get("camera")
+                    end
+                end
                 if a0 and a0.recoil and a0.recoil.func and not a0._nrPatched then
                     a0._nrPatched = true
                     local oldFunc = a0.recoil.func
@@ -388,7 +397,7 @@ local function enableNoRecoil()
     end
 
     nrRSConn = game:GetService("RunService").RenderStepped:Connect(function()
-        if nrEnabled then nrClearShootOffset() end
+        if nrEnabled then nrClearRecoil() end
     end)
 
     Library:Notify("No Recoil enabled", 2)
@@ -397,6 +406,7 @@ end
 local function disableNoRecoil()
     nrEnabled = false
     if nrRSConn then nrRSConn:Disconnect(); nrRSConn = nil end
+    nrCharValues = nil
     nrCamCF = nil
     local mod
     local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
