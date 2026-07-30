@@ -337,8 +337,8 @@ SilentAimGroup:AddButton({ Text = "Toggle", Func = function() if silentAimHooked
 local NoRecoilGroup = CombatTab:AddRightGroupbox("No Recoil")
 
 local nrEnabled = false
-local nrVertMult = 1
-local nrHorzMult = 1
+local nrVKeep = 0
+local nrHKeep = 0
 local nrThread = nil
 
 local function enableNoRecoil()
@@ -352,14 +352,10 @@ local function enableNoRecoil()
                 if okCh and char and char.values then
                     local gun = char.values.equipped
                     if gun and gun.states then
-                        if nrVertMult > 0 then
-                            local okV, curV = pcall(gun.states.recoil_up.get, gun.states.recoil_up)
-                            if okV then pcall(gun.states.recoil_up.set, gun.states.recoil_up, curV * (1 - nrVertMult)) end
-                        end
-                        if nrHorzMult > 0 then
-                            local okH, curH = pcall(gun.states.recoil_side.get, gun.states.recoil_side)
-                            if okH then pcall(gun.states.recoil_side.set, gun.states.recoil_side, curH * (1 - nrHorzMult)) end
-                        end
+                        local okV, curV = pcall(gun.states.recoil_up.get, gun.states.recoil_up)
+                        if okV then pcall(gun.states.recoil_up.set, gun.states.recoil_up, curV * nrVKeep) end
+                        local okH, curH = pcall(gun.states.recoil_side.get, gun.states.recoil_side)
+                        if okH then pcall(gun.states.recoil_side.set, gun.states.recoil_side, curH * nrHKeep) end
                     end
                 end
             end
@@ -379,8 +375,8 @@ NoRecoilGroup:AddToggle("NoRecoilToggle", {
     Text = "No Recoil", Default = false,
     Callback = function(v) if v then enableNoRecoil() else disableNoRecoil() end end,
 })
-NoRecoilGroup:AddSlider("NoRecoilV", { Text = "Vertical Cancel", Default = 100, Min = 0, Max = 100, Rounding = 1, Suffix = "%", Callback = function(v) nrVertMult = v / 100 end })
-NoRecoilGroup:AddSlider("NoRecoilH", { Text = "Horizontal Cancel", Default = 100, Min = 0, Max = 100, Rounding = 1, Suffix = "%", Callback = function(v) nrHorzMult = v / 100 end })
+NoRecoilGroup:AddSlider("NoRecoilV", { Text = "Vertical Recoil", Default = 0, Min = 0, Max = 100, Rounding = 1, Suffix = "%", Callback = function(v) nrVKeep = v / 100 end })
+NoRecoilGroup:AddSlider("NoRecoilH", { Text = "Horizontal Recoil", Default = 0, Min = 0, Max = 100, Rounding = 1, Suffix = "%", Callback = function(v) nrHKeep = v / 100 end })
 
 -- No Gun Movement
 
