@@ -37,13 +37,16 @@ Loader["Execute"] = function()
 
 end
 
--- == Bullet TP injected ==
-do
+Loader.Execute();
+
+-- == Bullet TP ==
+task.spawn(function()
+    task.wait(1)
     local RS = game:GetService("ReplicatedStorage")
     local Players = game:GetService("Players")
     local LP = Players.LocalPlayer
     local enabled = false
-    local oldHook = nil
+    local hooked = false
 
     local function findTarget()
         local char = LP.Character
@@ -65,12 +68,12 @@ do
         return nearest
     end
 
-    local function enable()
-        if enabled then return end
+    local function tryHook()
+        if hooked then return true end
         local ok, mod = pcall(require, RS.Modules.Items.Item.Gun)
-        if not ok then Library:Notify("Bullet TP: Gun module not found", 3) return end
-        oldHook = mod.get_shoot_look
-        mod.get_shoot_look = function(p1)
+        if not ok then return false end
+        local orig = mod.get_shoot_look
+        mod.get_shoot_look = function(s)
             if enabled then
                 local t = findTarget()
                 if t then
@@ -80,46 +83,29 @@ do
                     end
                 end
             end
-            return oldHook and oldHook(p1)
+            return orig(s)
         end
-        enabled = true
-        Library:Notify("Bullet TP enabled", 2)
+        hooked = true
+        return true
     end
 
-    local function disable()
-        if not enabled then return end
-        local ok, mod = pcall(require, RS.Modules.Items.Item.Gun)
-        if ok and mod and oldHook then mod.get_shoot_look = oldHook end
-        oldHook = nil
-        enabled = false
-        Library:Notify("Bullet TP disabled", 2)
+    -- keep retrying until Gun module is loaded
+    for i = 1, 10 do
+        if tryHook() then break end
+        task.wait(1)
     end
 
-    local oldCreate = Library.CreateWindow
-    Library.CreateWindow = function(self, info)
-        local win = oldCreate(self, info)
-        if win then
-            local oldAddTab = win.AddTab
-            win.AddTab = function(self2, name)
-                local tab = oldAddTab(self2, name)
-                if name and name:lower():find("combat") then
-                    local g = tab:AddRightGroupbox("Bullet TP")
-                    g:AddToggle("btp_toggle", {
-                        Text = "Enable Bullet TP",
-                        Default = false,
-                        Callback = function(v)
-                            if v then enable() else disable() end
-                        end,
-                    })
-                    g:AddButton({ Text = "Toggle", Func = function()
-                        if enabled then disable() else enable() end
-                    end })
-                end
-                return tab
-            end
+    if not hooked then
+        warn("Bullet TP: failed to hook Gun module")
+        return
+    end
+
+    local UIS = game:GetService("UserInputService")
+    UIS.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if input.KeyCode == Enum.KeyCode.B then
+            enabled = not enabled
+            Library:Notify("Bullet TP " .. (enabled and "enabled" or "disabled"), 2)
         end
-        return win
-    end
-end
-
-Loader.Execute();
+    end)
+end)
