@@ -44,6 +44,7 @@ do
     local RS = game:GetService("ReplicatedStorage")
     local Players = game:GetService("Players")
     local LP = Players.LocalPlayer
+    _G.__BTP_ENABLED = false
     local enabled = false
     local hooked = false
 
@@ -104,6 +105,7 @@ do
         if gpe then return end
         if input.KeyCode == Enum.KeyCode.B then
             enabled = not enabled
+            _G.__BTP_ENABLED = enabled
             Library:Notify("Bullet TP " .. (enabled and "enabled" or "disabled"), 2)
         end
     end)
