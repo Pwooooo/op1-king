@@ -834,83 +834,327 @@ NoShakeGroup:AddButton({
     end,
 })
 
--- Shaders tab: Glossy OP1
 
-local ShadersGroup = ShadersTab:AddLeftGroupbox("Glossy OP1 Shaders")
+-- Shaders tab: RoShade-style effects
 
-local glossyOn = false
-local glossyHbs = {}
+-- Bloom
+local BloomGroup = ShadersTab:AddLeftGroupbox("Bloom")
 
-local function toggleGlossy(v)
-	glossyOn = v
-	local lighting = game:GetService("Lighting")
-	if v then
-		lighting.Brightness = 2.5
-		lighting.OutdoorAmbient = Color3.new(1, 1, 1)
-		lighting.Ambient = Color3.new(1, 1, 1)
-		lighting.GlobalShadows = false
-		lighting.FogEnd = 1e5
-		for _, p in pairs(workspace:GetDescendants()) do
-			if p:IsA("BasePart") and not p:IsA("Terrain") then
-				p.Material = Enum.Material.ForceField
-			end
-		end
-		glossyHbs.desc = workspace.DescendantAdded:Connect(function(p)
-			task.wait()
-			if p:IsA("BasePart") and not p:IsA("Terrain") then
-				p.Material = Enum.Material.ForceField
-			end
-		end)
-		glossyHbs.char = Players.LocalPlayer.CharacterAdded:Connect(function()
-			task.wait(0.5)
-			for _, p in pairs(workspace:GetDescendants()) do
-				if p:IsA("BasePart") and not p:IsA("Terrain") then
-					p.Material = Enum.Material.ForceField
-				end
-			end
-		end)
-		glossyHbs.fps = game:GetService("RunService").RenderStepped:Connect(function()
-			lighting.Brightness = 2.5
-			lighting.OutdoorAmbient = Color3.new(1, 1, 1)
-			lighting.Ambient = Color3.new(1, 1, 1)
-			lighting.GlobalShadows = false
-		end)
-	else
-		lighting.Brightness = 1
-		lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
-		lighting.Ambient = Color3.new()
-		lighting.GlobalShadows = true
-		lighting.FogEnd = 1e5
-		for _, p in pairs(workspace:GetDescendants()) do
-			if p:IsA("BasePart") and not p:IsA("Terrain") then
-				p.Material = Enum.Material.SmoothPlastic
-			end
-		end
-		for _, c in pairs(glossyHbs) do pcall(c.Disconnect, c) end
-		glossyHbs = {}
-	end
-end
+local bloomFx = Instance.new("BloomEffect")
+bloomFx.Intensity = 1
+bloomFx.Size = 24
+bloomFx.Threshold = 0.5
+bloomFx.Enabled = false
 
-ShadersGroup:AddToggle("GlossyToggle", {
-	Text = "Glossy OP1",
-	Default = false,
-	Tooltip = "ForceField material + max brightness on all parts",
-	Callback = function(v) toggleGlossy(v) end,
+BloomGroup:AddToggle("BloomToggle", {
+    Text = "Bloom",
+    Default = false,
+    Tooltip = "Bright surfaces bleed light into surrounding pixels",
+    Callback = function(v)
+        bloomFx.Enabled = v
+        if v then
+            bloomFx.Parent = game:GetService("Lighting")
+        else
+            bloomFx.Parent = nil
+        end
+    end,
 })
 
-ShadersGroup:AddDivider()
+BloomGroup:AddDivider()
 
-ShadersGroup:AddSlider("FOVSlider", {
-	Text = "FOV",
-	Default = 90,
-	Min = 60,
-	Max = 120,
-	Rounding = 1,
-	Suffix = " deg",
-	Tooltip = "Camera field of view",
-	Callback = function(v)
-		pcall(function() workspace.CurrentCamera.FieldOfView = v end)
-	end,
+BloomGroup:AddSlider("BloomIntensity", {
+    Text = "Intensity",
+    Default = 1,
+    Min = 0,
+    Max = 5,
+    Rounding = 2,
+    Suffix = "x",
+    Callback = function(v) bloomFx.Intensity = v end,
+})
+
+BloomGroup:AddSlider("BloomSize", {
+    Text = "Size",
+    Default = 24,
+    Min = 0,
+    Max = 100,
+    Rounding = 1,
+    Suffix = "",
+    Callback = function(v) bloomFx.Size = v end,
+})
+
+BloomGroup:AddSlider("BloomThreshold", {
+    Text = "Threshold",
+    Default = 0.5,
+    Min = 0,
+    Max = 2,
+    Rounding = 2,
+    Suffix = "",
+    Callback = function(v) bloomFx.Threshold = v end,
+})
+
+BloomGroup:AddDivider()
+
+BloomGroup:AddToggle("GlossyToggle", {
+    Text = "Glossy OP1",
+    Default = false,
+    Tooltip = "ForceField material + max brightness on all parts",
+    Callback = function(v)
+        local lighting = game:GetService("Lighting")
+        if v then
+            lighting.Brightness = 2.5
+            lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+            lighting.Ambient = Color3.new(1, 1, 1)
+            lighting.GlobalShadows = false
+            lighting.FogEnd = 1e5
+            for _, p in pairs(workspace:GetDescendants()) do
+                if p:IsA("BasePart") and not p:IsA("Terrain") then
+                    p.Material = Enum.Material.ForceField
+                end
+            end
+        else
+            lighting.Brightness = 1
+            lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
+            lighting.Ambient = Color3.new()
+            lighting.GlobalShadows = true
+            lighting.FogEnd = 1e5
+            for _, p in pairs(workspace:GetDescendants()) do
+                if p:IsA("BasePart") and not p:IsA("Terrain") then
+                    p.Material = Enum.Material.SmoothPlastic
+                end
+            end
+        end
+    end,
+})
+
+BloomGroup:AddDivider()
+
+BloomGroup:AddSlider("FOVSlider", {
+    Text = "FOV",
+    Default = 90,
+    Min = 60,
+    Max = 120,
+    Rounding = 1,
+    Suffix = " deg",
+    Tooltip = "Camera field of view",
+    Callback = function(v)
+        pcall(function() workspace.CurrentCamera.FieldOfView = v end)
+    end,
+})
+
+-- Color Grading
+local ColorGroup = ShadersTab:AddLeftGroupbox("Color Grading")
+
+local ccFx = Instance.new("ColorCorrectionEffect")
+ccFx.Saturation = 0.2
+ccFx.Contrast = 0.1
+ccFx.Brightness = 0
+ccFx.TintColor = Color3.new(1, 1, 1)
+ccFx.Enabled = false
+
+ColorGroup:AddToggle("ColorToggle", {
+    Text = "Color Grading",
+    Default = false,
+    Tooltip = "Adjust saturation, contrast, brightness, and tint",
+    Callback = function(v)
+        ccFx.Enabled = v
+        if v then
+            ccFx.Parent = game:GetService("Lighting")
+        else
+            ccFx.Parent = nil
+        end
+    end,
+})
+
+ColorGroup:AddDivider()
+
+ColorGroup:AddSlider("ColorSaturation", {
+    Text = "Saturation",
+    Default = 0.2,
+    Min = -1,
+    Max = 1,
+    Rounding = 2,
+    Suffix = "",
+    Tooltip = "-1 = grayscale, 0 = normal, 1 = oversaturated",
+    Callback = function(v) ccFx.Saturation = v end,
+})
+
+ColorGroup:AddSlider("ColorContrast", {
+    Text = "Contrast",
+    Default = 0.1,
+    Min = -1,
+    Max = 1,
+    Rounding = 2,
+    Suffix = "",
+    Callback = function(v) ccFx.Contrast = v end,
+})
+
+ColorGroup:AddSlider("ColorBrightness", {
+    Text = "Brightness",
+    Default = 0,
+    Min = -1,
+    Max = 1,
+    Rounding = 2,
+    Suffix = "",
+    Callback = function(v) ccFx.Brightness = v end,
+})
+
+ColorGroup:AddDivider()
+
+ColorGroup:AddColorPicker("ColorTint", {
+    Title = "Tint Color",
+    Default = Color3.new(1, 1, 1),
+    Tooltip = "Color tint applied to the scene",
+    Callback = function(v) ccFx.TintColor = v end,
+})
+
+-- Right column
+
+-- Depth of Field
+local DoFGroup = ShadersTab:AddRightGroupbox("Depth of Field")
+
+local dofFx = Instance.new("DepthOfFieldEffect")
+dofFx.FarIntensity = 0.5
+dofFx.FocusDistance = 30
+dofFx.InFocusRadius = 10
+dofFx.NearIntensity = 0
+dofFx.Enabled = false
+
+DoFGroup:AddToggle("DoFToggle", {
+    Text = "Depth of Field",
+    Default = false,
+    Tooltip = "Blurs distant objects for cinematic depth",
+    Callback = function(v)
+        dofFx.Enabled = v
+        if v then
+            dofFx.Parent = game:GetService("Lighting")
+        else
+            dofFx.Parent = nil
+        end
+    end,
+})
+
+DoFGroup:AddDivider()
+
+DoFGroup:AddSlider("DoFDistance", {
+    Text = "Focus Distance",
+    Default = 30,
+    Min = 0,
+    Max = 200,
+    Rounding = 1,
+    Suffix = " studs",
+    Callback = function(v) dofFx.FocusDistance = v end,
+})
+
+DoFGroup:AddSlider("DoFRadius", {
+    Text = "In Focus Radius",
+    Default = 10,
+    Min = 0,
+    Max = 50,
+    Rounding = 1,
+    Suffix = " studs",
+    Callback = function(v) dofFx.InFocusRadius = v end,
+})
+
+DoFGroup:AddSlider("DoFFar", {
+    Text = "Far Blur",
+    Default = 0.5,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Suffix = "",
+    Callback = function(v) dofFx.FarIntensity = v end,
+})
+
+-- Sun Rays
+local SunGroup = ShadersTab:AddRightGroupbox("Sun Rays")
+
+local sunFx = Instance.new("SunRaysEffect")
+sunFx.Intensity = 0.1
+sunFx.Spread = 0.5
+sunFx.Enabled = false
+
+SunGroup:AddToggle("SunToggle", {
+    Text = "Sun Rays",
+    Default = false,
+    Tooltip = "Volumetric god rays from the sun",
+    Callback = function(v)
+        sunFx.Enabled = v
+        if v then
+            sunFx.Parent = game:GetService("Lighting")
+        else
+            sunFx.Parent = nil
+        end
+    end,
+})
+
+SunGroup:AddDivider()
+
+SunGroup:AddSlider("SunIntensity", {
+    Text = "Intensity",
+    Default = 0.1,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Suffix = "",
+    Callback = function(v) sunFx.Intensity = v end,
+})
+
+SunGroup:AddSlider("SunSpread", {
+    Text = "Spread",
+    Default = 0.5,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Suffix = "",
+    Callback = function(v) sunFx.Spread = v end,
+})
+
+-- Vignette
+local VigGroup = ShadersTab:AddRightGroupbox("Vignette")
+
+local vigGui = Instance.new("ScreenGui")
+vigGui.Name = "VignetteOverlay"
+vigGui.ResetOnSpawn = false
+vigGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+vigGui.IgnoreGuiInset = true
+vigGui.Enabled = false
+
+local vigImg = Instance.new("ImageLabel")
+vigImg.Size = UDim2.new(1, 0, 1, 0)
+vigImg.BackgroundTransparency = 1
+vigImg.Image = "rbxassetid://4316120033"
+vigImg.ImageColor3 = Color3.new(0, 0, 0)
+vigImg.ImageTransparency = 0.5
+vigImg.Parent = vigGui
+
+VigGroup:AddToggle("VignetteToggle", {
+    Text = "Vignette",
+    Default = false,
+    Tooltip = "Darkens screen corners for cinematic look",
+    Callback = function(v)
+        vigGui.Enabled = v
+        if v then
+            pcall(function() vigGui.Parent = LP:WaitForChild("PlayerGui", 5) end)
+            if not vigGui.Parent then
+                pcall(function() vigGui.Parent = CoreGui end)
+            end
+        else
+            vigGui.Parent = nil
+        end
+    end,
+})
+
+VigGroup:AddDivider()
+
+VigGroup:AddSlider("VignetteIntensity", {
+    Text = "Darkness",
+    Default = 0.5,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Suffix = "",
+    Tooltip = "How dark the vignette edges are",
+    Callback = function(v) vigImg.ImageTransparency = 1 - v end,
 })
 
 Library:SetWatermark("OP1 King")
