@@ -332,44 +332,45 @@ SilentAimGroup:AddButton({ Text = "Toggle", Func = function() if silentAimHooked
 
 -- Recoil Macro
 
-local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Macro")
+-- No Recoil
 
-local recoilActive = false
-local recoilPullV = 15
-local recoilPullH = 0
-local oldNamecall = nil
-local UIS = game:GetService("UserInputService")
+local NoRecoilGroup = CombatTab:AddRightGroupbox("No Recoil")
 
-local function macroEnable()
-    if recoilActive then return end
-    recoilActive = true
-    if not oldNamecall then
-        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local method = getnamecallmethod()
-            if recoilActive and method == "GetMouseDelta" and self == UIS then
-                local delta = oldNamecall(self, ...)
-                if self:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-                    return Vector2.new(delta.X + recoilPullH, delta.Y + recoilPullV)
-                end
-                return delta
-            end
-            return oldNamecall(self, ...)
-        end)
+local gunModuleNr = nil
+local oldRecoilFunc = nil
+local noRecoilHooked = false
+
+local function getGunModuleNR()
+    if gunModuleNr then return gunModuleNr end
+    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
+    if s then gunModuleNr = m end
+    return gunModuleNr
+end
+
+local function enableNoRecoil()
+    if noRecoilHooked then return end
+    local mod = getGunModuleNR()
+    if not mod then Library:Notify("No Recoil: failed to load Gun module", 3) return end
+    oldRecoilFunc = mod.recoil_function
+    mod.recoil_function = function(...)
+        if noRecoilHooked then return end
+        if oldRecoilFunc then return oldRecoilFunc(...) end
     end
-    Library:Notify("Recoil Macro enabled", 2)
+    noRecoilHooked = true; Library:Notify("No Recoil enabled", 2)
 end
 
-local function macroDisable()
-    recoilActive = false; Library:Notify("Recoil Macro disabled", 2)
+local function disableNoRecoil()
+    if not noRecoilHooked then return end
+    local mod = getGunModuleNR()
+    if mod and oldRecoilFunc then mod.recoil_function = oldRecoilFunc end
+    oldRecoilFunc = nil; noRecoilHooked = false; Library:Notify("No Recoil disabled", 2)
 end
 
-RecoilGroup:AddToggle("RecoilToggle", {
-    Text = "Recoil Macro", Default = false,
-    Callback = function(v) if v then macroEnable() else macroDisable() end end,
+NoRecoilGroup:AddToggle("NoRecoilToggle", {
+    Text = "No Recoil", Default = false,
+    Callback = function(v) if v then enableNoRecoil() else disableNoRecoil() end end,
 })
-RecoilGroup:AddSlider("RecoilV", { Text = "Vertical Pull", Default = 15, Min = 0, Max = 50, Rounding = 1, Suffix = "px", Callback = function(v) recoilPullV = v end })
-RecoilGroup:AddSlider("RecoilH", { Text = "Horizontal Pull", Default = 0, Min = 0, Max = 50, Rounding = 1, Suffix = "px", Callback = function(v) recoilPullH = v end })
-RecoilGroup:AddButton({ Text = "Toggle", Func = function() if recoilActive then macroDisable() else macroEnable() end end })
+NoRecoilGroup:AddButton({ Text = "Toggle", Func = function() if noRecoilHooked then disableNoRecoil() else enableNoRecoil() end end })
 
 -- No Gun Movement
 
