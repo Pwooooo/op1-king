@@ -93,41 +93,53 @@ do
         Library:Notify("Device spoof reset", 2)
     end })
 
-    local configs = { saved = {} }
-    local configName = ""
+    local configs = {}
+    local configDropdown
+
+    local function refreshDropdown()
+        local names = {}
+        for n in pairs(configs) do table.insert(names, n) end
+        table.sort(names)
+        if configDropdown then configDropdown:SetValues(names) end
+    end
 
     local function saveConfig(name)
-        configs.saved[name] = { spoof = currentMode }
+        configs[name] = { spoof = currentMode }
+        refreshDropdown()
+        if autoloadToggle then saveAutoload(name) end
         Library:Notify("Config saved: " .. name, 2)
     end
 
     local function loadConfig(name)
-        local c = configs.saved[name]
+        local c = configs[name]
         if c then
-            applySpoof(c.spoof)
+            if c.spoof then applySpoof(c.spoof) end
             Library:Notify("Config loaded: " .. name, 2)
         end
     end
 
+    local function deleteConfig(name)
+        configs[name] = nil
+        refreshDropdown()
+        Library:Notify("Config deleted: " .. name, 2)
+    end
+
     local cg = configTab:AddLeftGroupbox("Config Manager")
+    local cfgName = "MyConfig"
     cg:AddInput("config_name", {
         Text = "Config Name",
         Default = "MyConfig",
-        Callback = function(v) configName = v end,
+        Callback = function(v) cfgName = v end,
     })
     cg:AddButton({ Text = "Create", Func = function()
-        if configName and configName ~= "" then
-            saveConfig(configName)
-        end
+        if cfgName and cfgName ~= "" then saveConfig(cfgName) end
     end })
     cg:AddButton({ Text = "Save", Func = function()
-        if configName and configName ~= "" then
-            saveConfig(configName)
-        end
+        if cfgName and cfgName ~= "" then saveConfig(cfgName) end
     end })
 
     local cg2 = configTab:AddLeftGroupbox("Load Config")
-    cg2:AddDropdown("config_list", {
+    configDropdown = cg2:AddDropdown("config_list", {
         Text = "Select Config",
         Values = {},
         Default = "",
@@ -135,12 +147,8 @@ do
             if v and v ~= "" then loadConfig(v) end
         end,
     })
-    cg2:AddButton({ Text = "Refresh List", Func = function()
-        local names = {}
-        for n in pairs(configs.saved) do table.insert(names, n) end
-        -- update dropdown values
-    end })
-    cg2:AddButton({ Text = "Delete Config", Func = function()
+    cg2:AddButton({ Text = "Refresh List", Func = refreshDropdown })
+    cg2:AddButton({ Text = "Delete Selected", Func = function()
         -- placeholder
     end })
 
@@ -150,5 +158,35 @@ do
         currentMode = nil
         Library:Notify("Reset to default", 2)
     end })
+
+    -- Autoload: persists last config name via writefile
+    local autoloadToggle = false
+    local autoloadFile = "tsb_spoof_autoload.txt"
+    local function saveAutoload(name)
+        local ok = pcall(writefile, autoloadFile, name or "")
+    end
+    local function loadAutoload()
+        local ok, data = pcall(readfile, autoloadFile)
+        return ok and data or nil
+    end
+
+    local cg4 = configTab:AddRightGroupbox("Autoload")
+    cg4:AddToggle("autoload", {
+        Text = "Autoload last config on start",
+        Default = false,
+        Callback = function(v)
+            autoloadToggle = v
+            if not v then saveAutoload("") end
+        end,
+    })
+    cg4:AddLabel("Last config will load automatically")
+
+    -- Try loading autoload config on start
+    local lastCfg = loadAutoload()
+    if lastCfg and lastCfg ~= "" and configs[lastCfg] then
+        task.wait(0.5)
+        loadConfig(lastCfg)
+        Library:Notify("Autoloaded config: " .. lastCfg, 3)
+    end
 end
 
