@@ -626,15 +626,15 @@ GlossGroup:AddToggle("SfxGlossT", {
         pcall(function()
             local l = game:GetService("Lighting")
             if v then
-                l.Brightness = 1.05
+                l.Brightness = 1.08; l.Ambient = Color3.fromRGB(18, 18, 22); l.OutdoorAmbient = Color3.fromRGB(175, 175, 190)
                 if not l:FindFirstChild("GlossBloom") then
-                    local b = Instance.new("BloomEffect"); b.Name = "GlossBloom"; b.Intensity = 0.3; b.Size = 12; b.Threshold = 0.5; b.Parent = l
+                    local b = Instance.new("BloomEffect"); b.Name = "GlossBloom"; b.Intensity = 0.45; b.Size = 22; b.Threshold = 0.35; b.Parent = l
                 else l.GlossBloom.Enabled = true end
                 if not l:FindFirstChild("GlossColor") then
-                    local c = Instance.new("ColorCorrectionEffect"); c.Name = "GlossColor"; c.Saturation = 0.1; c.Contrast = 0.15; c.Brightness = 0.03; c.Parent = l
+                    local c = Instance.new("ColorCorrectionEffect"); c.Name = "GlossColor"; c.Saturation = 0.15; c.Contrast = 0.2; c.Brightness = 0.04; c.TintColor = Color3.fromRGB(242, 238, 230); c.Parent = l
                 else l.GlossColor.Enabled = true end
             else
-                l.Brightness = 1
+                l.Brightness = 1; l.Ambient = Color3.new(); l.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
                 if l:FindFirstChild("GlossBloom") then l.GlossBloom.Enabled = false end
                 if l:FindFirstChild("GlossColor") then l.GlossColor.Enabled = false end
             end
