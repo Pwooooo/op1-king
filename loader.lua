@@ -1,21 +1,25 @@
-local kyri = loadstring(game:HttpGet("https://raw.githubusercontent.com/Justanewplayer19/KyriLib/refs/heads/main/source.lua"))()
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
-local w = kyri.new("OP1 King", {
-    GameName = "OP1King",
-    AutoLoad = "default"
+local Window = Library:CreateWindow({
+    Title = "OP1 King",
+    Center = true,
+    AutoShow = true,
+    Size = UDim2.fromOffset(550, 500),
 })
 
--- Services
-local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local CoreGui = game:GetService("CoreGui")
-local LP = Players.LocalPlayer
+local BypassTab = Window:AddTab("Bypass", "shield")
+local CombatTab = Window:AddTab("Combat", "crosshair")
+local VisualTab = Window:AddTab("Visual", "eye")
+local ShadersTab = Window:AddTab("Shaders", "palette")
+local ConfigTab = Window:AddTab("Config", "settings")
+local SettingsTab = Window:AddTab("UI Settings", "sliders")
 
--- ============================================================
--- Bypass tab
--- ============================================================
-local bypassTab = w:tab("Bypass", "shield")
+-- Anti-Cheat Bypass
+
+local BypassGroup = BypassTab:AddLeftGroupbox("Anti-Cheat Bypass")
 
 local bypassHooked = false
 local origByte = nil
@@ -63,11 +67,9 @@ local function applyHooks()
     if ok3 and type(extras) == "table" and type(extras.ResetEnv) == "function" then
         local needWrap = false
         if not origResetEnv then
-            origResetEnv = extras.ResetEnv
-            needWrap = true
+            origResetEnv = extras.ResetEnv; needWrap = true
         elseif extras.ResetEnv ~= origResetEnv and extras.ResetEnv ~= nil then
-            origResetEnv = extras.ResetEnv
-            needWrap = true
+            origResetEnv = extras.ResetEnv; needWrap = true
         end
         if needWrap and origResetEnv then
             local wrapped = newcclosure(function(...)
@@ -109,7 +111,9 @@ local function enableBypass()
             end
         end
     end)
-    w:notify("Bypass", "enabled", 2)
+    StatusLabel:SetText("Bypass: Enabled")
+    BypassToggle:SetValue(true)
+    Library:Notify("Bypass enabled", 2)
 end
 
 local function disableBypass()
@@ -127,26 +131,33 @@ local function disableBypass()
         end)
         origResetEnv = nil
     end
-    w:notify("Bypass", "disabled", 2)
+    StatusLabel:SetText("Bypass: Disabled")
+    BypassToggle:SetValue(false)
+    Library:Notify("Bypass disabled", 2)
 end
 
-bypassTab:toggle("Enable Bypass", false, function(v)
-    if v then enableBypass() else disableBypass() end
-end)
+local StatusLabel = BypassGroup:AddLabel("Bypass: Disabled")
 
-bypassTab:button("Enable Now", function() enableBypass() end)
-bypassTab:button("Disable Now", function() disableBypass() end)
-bypassTab:button("Rejoin Server", function()
-    game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LP)
-end)
+local BypassToggle = BypassGroup:AddToggle("BypassToggle", {
+    Text = "Enable Bypass",
+    Default = false,
+    Callback = function(v)
+        if v then enableBypass() else disableBypass() end
+    end,
+})
 
--- ============================================================
--- Combat tab
--- ============================================================
-local combatTab = w:tab("Combat", "crosshair")
+BypassGroup:AddButton({ Text = "Enable Now", Func = function() enableBypass() Library:Notify("Bypass enabled", 2) end })
+BypassGroup:AddButton({ Text = "Disable Now", Func = function() disableBypass() Library:Notify("Bypass disabled", 2) end })
+BypassGroup:AddButton({ Text = "Rejoin Server", Func = function() game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, game:GetService("Players").LocalPlayer) end })
 
 -- No Spread
-combatTab:label("No Spread")
+
+local SpreadGroup = CombatTab:AddLeftGroupbox("No Spread")
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
 
 local gunModuleSp = nil
 local oldSendShoot = nil
@@ -162,7 +173,7 @@ end
 local function enableNoSpread()
     if noSpreadHooked then return end
     local mod = getGunModule()
-    if not mod then w:notify("No Spread", "failed to load Gun module", 3) return end
+    if not mod then Library:Notify("No Spread: failed to load Gun module", 3) return end
     oldSendShoot = mod.send_shoot
     mod.send_shoot = function(p1, ...)
         if noSpreadHooked and p1 and p1.states and p1.states.spread then
@@ -174,30 +185,26 @@ local function enableNoSpread()
         end
         return oldSendShoot(p1, ...)
     end
-    noSpreadHooked = true
-    w:notify("No Spread", "enabled", 2)
+    noSpreadHooked = true; Library:Notify("No Spread enabled", 2)
 end
 
 local function disableNoSpread()
     if not noSpreadHooked then return end
     local mod = getGunModule()
     if mod and oldSendShoot then mod.send_shoot = oldSendShoot end
-    oldSendShoot = nil; noSpreadHooked = false
-    w:notify("No Spread", "disabled", 2)
+    oldSendShoot = nil; noSpreadHooked = false; Library:Notify("No Spread disabled", 2)
 end
 
-combatTab:toggle("No Spread", false, function(v)
-    if v then enableNoSpread() else disableNoSpread() end
-end)
-combatTab:button("Toggle No Spread", function()
-    if noSpreadHooked then disableNoSpread() else enableNoSpread() end
-end)
-combatTab:button("Reset No Spread", function() disableNoSpread(); w:notify("No Spread", "reset", 2) end)
-
-combatTab:divider()
+SpreadGroup:AddToggle("NoSpreadToggle", {
+    Text = "No Spread", Default = false,
+    Callback = function(v) if v then enableNoSpread() else disableNoSpread() end end,
+})
+SpreadGroup:AddButton({ Text = "Toggle", Func = function() if noSpreadHooked then disableNoSpread() else enableNoSpread() end end })
+SpreadGroup:AddButton({ Text = "Reset", Func = function() disableNoSpread(); Library:Notify("No Spread reset", 2) end })
 
 -- Bullet TP
-combatTab:label("Bullet TP")
+
+local BulletTPGroup = CombatTab:AddRightGroupbox("Bullet TP")
 
 local gunModuleBt = nil
 local oldGetShootLook = nil
@@ -233,7 +240,7 @@ end
 local function enableBulletTP()
     if bulletTPHooked then return end
     local mod = getGunModuleBT()
-    if not mod then w:notify("Bullet TP", "failed to load Gun module", 3) return end
+    if not mod then Library:Notify("Bullet TP: failed to load Gun module", 3) return end
     oldGetShootLook = mod.get_shoot_look
     mod.get_shoot_look = function(p1)
         if bulletTPHooked then
@@ -247,29 +254,25 @@ local function enableBulletTP()
         end
         return oldGetShootLook(p1)
     end
-    bulletTPHooked = true
-    w:notify("Bullet TP", "enabled", 2)
+    bulletTPHooked = true; Library:Notify("Bullet TP enabled", 2)
 end
 
 local function disableBulletTP()
     if not bulletTPHooked then return end
     local mod = getGunModuleBT()
     if mod and oldGetShootLook then mod.get_shoot_look = oldGetShootLook end
-    oldGetShootLook = nil; bulletTPHooked = false
-    w:notify("Bullet TP", "disabled", 2)
+    oldGetShootLook = nil; bulletTPHooked = false; Library:Notify("Bullet TP disabled", 2)
 end
 
-combatTab:toggle("Bullet TP", false, function(v)
-    if v then enableBulletTP() else disableBulletTP() end
-end)
-combatTab:button("Toggle Bullet TP", function()
-    if bulletTPHooked then disableBulletTP() else enableBulletTP() end
-end)
-
-combatTab:divider()
+BulletTPGroup:AddToggle("BulletTPToggle", {
+    Text = "Bullet TP", Default = false,
+    Callback = function(v) if v then enableBulletTP() else disableBulletTP() end end,
+})
+BulletTPGroup:AddButton({ Text = "Toggle", Func = function() if bulletTPHooked then disableBulletTP() else enableBulletTP() end end })
 
 -- Silent Aim
-combatTab:label("Silent Aim")
+
+local SilentAimGroup = CombatTab:AddRightGroupbox("Silent Aim")
 
 local gunModuleSa = nil
 local silentAimHooked = false
@@ -293,9 +296,9 @@ end
 local function enableSilentAim()
     if silentAimHooked then return end
     local mod = getGunModuleSA()
-    if not mod then w:notify("Silent Aim", "failed to load Gun module", 3) return end
+    if not mod then Library:Notify("Silent Aim: failed to load Gun module", 3) return end
     local s, item = pcall(require, ReplicatedStorage.Modules.Items.Item)
-    if not s or not item.ray_damage then w:notify("Silent Aim", "failed to load Item module", 3) return end
+    if not s or not item.ray_damage then Library:Notify("Silent Aim: failed to load Item module", 3) return end
     silentAimOrig = item.ray_damage
     mod.ray_damage = function(p1, origin, direction, filter, ...)
         if silentAimHooked then
@@ -307,35 +310,35 @@ local function enableSilentAim()
         end
         return silentAimOrig(p1, origin, direction, filter, ...)
     end
-    silentAimHooked = true
-    w:notify("Silent Aim", "enabled", 2)
+    silentAimHooked = true; Library:Notify("Silent Aim enabled", 2)
 end
 
 local function disableSilentAim()
     if not silentAimHooked then return end
     local mod = getGunModuleSA()
     if mod then mod.ray_damage = nil end
-    silentAimHooked = false
-    w:notify("Silent Aim", "disabled", 2)
+    silentAimHooked = false; Library:Notify("Silent Aim disabled", 2)
 end
 
-combatTab:toggle("Silent Aim", false, function(v)
-    if v then enableSilentAim() else disableSilentAim() end
-end)
-combatTab:slider("FOV Radius", 5, 500, 60, " deg", function(v) silentAimFov = v end)
-combatTab:button("Toggle Silent Aim", function()
-    if silentAimHooked then disableSilentAim() else enableSilentAim() end
-end)
-
-combatTab:divider()
+SilentAimGroup:AddToggle("SilentAimToggle", {
+    Text = "Silent Aim", Default = false,
+    Callback = function(v) if v then enableSilentAim() else disableSilentAim() end end,
+})
+SilentAimGroup:AddSlider("SilentAimFov", {
+    Text = "FOV Radius", Default = 60, Min = 5, Max = 500, Rounding = 1, Suffix = " deg",
+    Callback = function(v) silentAimFov = v end,
+})
+SilentAimGroup:AddButton({ Text = "Toggle", Func = function() if silentAimHooked then disableSilentAim() else enableSilentAim() end end })
 
 -- Recoil Macro
-combatTab:label("Recoil Macro")
+
+local RecoilGroup = CombatTab:AddRightGroupbox("Recoil Macro")
 
 local recoilActive = false
 local recoilPullV = 15
 local recoilPullH = 0
 local oldNamecall = nil
+local UIS = game:GetService("UserInputService")
 
 local function macroEnable()
     if recoilActive then return end
@@ -353,30 +356,24 @@ local function macroEnable()
             return oldNamecall(self, ...)
         end)
     end
-    w:notify("Recoil Macro", "enabled", 2)
+    Library:Notify("Recoil Macro enabled", 2)
 end
 
 local function macroDisable()
-    recoilActive = false
-    w:notify("Recoil Macro", "disabled", 2)
+    recoilActive = false; Library:Notify("Recoil Macro disabled", 2)
 end
 
-combatTab:toggle("Recoil Macro", false, function(v)
-    if v then macroEnable() else macroDisable() end
-end)
-combatTab:slider("Vertical Pull", 0, 50, 15, "px", function(v) recoilPullV = v end)
-combatTab:slider("Horizontal Pull", 0, 50, 0, "px", function(v) recoilPullH = v end)
-combatTab:button("Toggle Recoil", function()
-    if recoilActive then macroDisable() else macroEnable() end
-end)
-
--- ============================================================
--- Visual tab
--- ============================================================
-local visualTab = w:tab("Visual", "eye")
+RecoilGroup:AddToggle("RecoilToggle", {
+    Text = "Recoil Macro", Default = false,
+    Callback = function(v) if v then macroEnable() else macroDisable() end end,
+})
+RecoilGroup:AddSlider("RecoilV", { Text = "Vertical Pull", Default = 15, Min = 0, Max = 50, Rounding = 1, Suffix = "px", Callback = function(v) recoilPullV = v end })
+RecoilGroup:AddSlider("RecoilH", { Text = "Horizontal Pull", Default = 0, Min = 0, Max = 50, Rounding = 1, Suffix = "px", Callback = function(v) recoilPullH = v end })
+RecoilGroup:AddButton({ Text = "Toggle", Func = function() if recoilActive then macroDisable() else macroEnable() end end })
 
 -- No Gun Movement
-visualTab:label("No Gun Movement")
+
+local NoMoveGroup = VisualTab:AddLeftGroupbox("No Gun Movement")
 
 local gunModuleNm = nil
 local oldRunning = nil
@@ -409,35 +406,31 @@ end
 local function enableNoMove()
     if noMoveHooked then return end
     local mod = getGunModuleNM()
-    if not mod then w:notify("No Move", "failed to load Gun module", 3) return end
+    if not mod then Library:Notify("No Move: failed to load Gun module", 3) return end
     oldRunning = mod.running
     mod.running = function(p1, p2, p3)
         if noMoveHooked then return end
         return oldRunning(p1, p2, p3)
     end
-    nmBobbing(); noMoveHooked = true
-    w:notify("No Gun Movement", "enabled", 2)
+    nmBobbing(); noMoveHooked = true; Library:Notify("No Gun Movement enabled", 2)
 end
 
 local function disableNoMove()
     if not noMoveHooked then return end
     local mod = getGunModuleNM()
     if mod and oldRunning then mod.running = oldRunning end
-    oldRunning = nil; stopNmBobbing(); noMoveHooked = false
-    w:notify("No Gun Movement", "disabled", 2)
+    oldRunning = nil; stopNmBobbing(); noMoveHooked = false; Library:Notify("No Gun Movement disabled", 2)
 end
 
-visualTab:toggle("No Gun Movement", false, function(v)
-    if v then enableNoMove() else disableNoMove() end
-end)
-visualTab:button("Toggle No Move", function()
-    if noMoveHooked then disableNoMove() else enableNoMove() end
-end)
-
-visualTab:divider()
+NoMoveGroup:AddToggle("NoMoveToggle", {
+    Text = "No Gun Movement", Default = false,
+    Callback = function(v) if v then enableNoMove() else disableNoMove() end end,
+})
+NoMoveGroup:AddButton({ Text = "Toggle", Func = function() if noMoveHooked then disableNoMove() else enableNoMove() end end })
 
 -- Bullet Tracers
-visualTab:label("Bullet Tracers")
+
+local TracerGroup = VisualTab:AddRightGroupbox("Bullet Tracers")
 
 local gunModuleTr = nil
 local oldTrail = nil
@@ -455,7 +448,7 @@ end
 local function enableTracers()
     if tracerHooked then return end
     local mod = getGunModuleTR()
-    if not mod then w:notify("Tracers", "failed to load Gun module", 3) return end
+    if not mod then Library:Notify("Tracers: failed to load Gun module", 3) return end
     oldTrail = mod.trail
     mod.trail = function(p1, startPos, endPos, p4)
         if tracerHooked and startPos and endPos then
@@ -465,38 +458,32 @@ local function enableTracers()
             a1.Position = startPos; a2.Position = endPos
             beam.Parent = workspace; beam.Attachment0 = a1; beam.Attachment1 = a2
             beam.Width0 = tracerWidth; beam.Width1 = tracerWidth
-            beam.Color = ColorSequence.new(tracerColor)
-            beam.Transparency = NumberSequence.new(0); beam.FaceCamera = true
-            game:GetService("Debris"):AddItem(beam, 0.15)
-            game:GetService("Debris"):AddItem(a1, 0.15); game:GetService("Debris"):AddItem(a2, 0.15)
+            beam.Color = ColorSequence.new(tracerColor); beam.Transparency = NumberSequence.new(0); beam.FaceCamera = true
+            game:GetService("Debris"):AddItem(beam, 0.15); game:GetService("Debris"):AddItem(a1, 0.15); game:GetService("Debris"):AddItem(a2, 0.15)
         end
         if oldTrail then return oldTrail(p1, startPos, endPos, p4) end
     end
-    tracerHooked = true
-    w:notify("Bullet Tracers", "enabled", 2)
+    tracerHooked = true; Library:Notify("Bullet Tracers enabled", 2)
 end
 
 local function disableTracers()
     if not tracerHooked then return end
     local mod = getGunModuleTR()
     if mod and oldTrail then mod.trail = oldTrail end
-    oldTrail = nil; tracerHooked = false
-    w:notify("Bullet Tracers", "disabled", 2)
+    oldTrail = nil; tracerHooked = false; Library:Notify("Bullet Tracers disabled", 2)
 end
 
-visualTab:toggle("Bullet Tracers", false, function(v)
-    if v then enableTracers() else disableTracers() end
-end)
-visualTab:slider("Width", 0.1, 3, 0.5, " studs", function(v) tracerWidth = v end)
-visualTab:colorpicker("Tracer Color", Color3.fromRGB(255, 200, 50), false, function(v) tracerColor = v end)
-visualTab:button("Toggle Tracers", function()
-    if tracerHooked then disableTracers() else enableTracers() end
-end)
-
-visualTab:divider()
+TracerGroup:AddToggle("TracerToggle", {
+    Text = "Bullet Tracers", Default = false,
+    Callback = function(v) if v then enableTracers() else disableTracers() end end,
+})
+TracerGroup:AddSlider("TracerWidth", { Text = "Width", Default = 0.5, Min = 0.1, Max = 3, Rounding = 1, Suffix = " studs", Callback = function(v) tracerWidth = v end })
+TracerGroup:AddColorPicker("TracerColor", { Default = Color3.fromRGB(255, 200, 50), Title = "Tracer Color", Callback = function(v) tracerColor = v end })
+TracerGroup:AddButton({ Text = "Toggle", Func = function() if tracerHooked then disableTracers() else enableTracers() end end })
 
 -- No Screen Shake
-visualTab:label("No Screen Shake")
+
+local NoShakeGroup = VisualTab:AddRightGroupbox("No Screen Shake")
 
 local noShakeHooked = false
 local windShakePaused = false
@@ -535,8 +522,7 @@ end
 
 local function enableNoShake()
     if noShakeHooked then return end
-    noShakeHooked = true
-    getgenv()._op1_ns_recoil = true
+    noShakeHooked = true; getgenv()._op1_ns_recoil = true
     local ok, cm = pcall(require, ReplicatedStorage.Modules.Character)
     if ok then nsCharMod = cm end
     nsRecoilThread = task.spawn(function()
@@ -554,96 +540,113 @@ local function enableNoShake()
             task.wait()
         end
     end)
-    pauseWindShake(); noopBobbing()
-    w:notify("No Screen Shake", "enabled", 2)
+    pauseWindShake(); noopBobbing(); Library:Notify("No Screen Shake enabled", 2)
 end
 
 local function disableNoShake()
     if not noShakeHooked then return end
-    noShakeHooked = false
-    getgenv()._op1_ns_recoil = false
+    noShakeHooked = false; getgenv()._op1_ns_recoil = false
     if nsRecoilThread then task.cancel(nsRecoilThread); nsRecoilThread = nil end
-    resumeWindShake(); stopBobbing()
-    w:notify("No Screen Shake", "disabled", 2)
+    resumeWindShake(); stopBobbing(); Library:Notify("No Screen Shake disabled", 2)
 end
 
-visualTab:toggle("No Screen Shake", false, function(v)
-    if v then enableNoShake() else disableNoShake() end
-end)
-visualTab:button("Toggle No Shake", function()
-    if noShakeHooked then disableNoShake() else enableNoShake() end
-end)
+NoShakeGroup:AddToggle("NoShakeToggle", {
+    Text = "No Screen Shake", Default = false,
+    Callback = function(v) if v then enableNoShake() else disableNoShake() end end,
+})
+NoShakeGroup:AddButton({ Text = "Toggle", Func = function() if noShakeHooked then disableNoShake() else enableNoShake() end end })
 
--- ============================================================
 -- Shaders tab
--- ============================================================
-local shadersTab = w:tab("Shaders", "palette")
+
+local ShadersGroup = ShadersTab:AddLeftGroupbox("Shaders")
 
 local bloomFx, bloomS = nil, { i = 1, s = 24, t = 0.5 }
 local ccFx, ccS = nil, { sat = 0.2, con = 0.1, bri = 0, tint = Color3.new(1, 1, 1) }
 local vigGui, vigImg = nil, nil
 
-shadersTab:label("Bloom")
-shadersTab:toggle("Bloom", false, function(v)
-    pcall(function()
-        if v then
-            if not bloomFx then bloomFx = Instance.new("BloomEffect"); bloomFx.Intensity = bloomS.i; bloomFx.Size = bloomS.s; bloomFx.Threshold = bloomS.t end
-            bloomFx.Parent = game:GetService("Lighting")
-        elseif bloomFx then bloomFx:Destroy(); bloomFx = nil end
-    end)
-end)
-shadersTab:slider("Intensity", 0, 5, 1, "x", function(v) bloomS.i = v; if bloomFx then pcall(function() bloomFx.Intensity = v end) end end)
-shadersTab:slider("Size", 0, 100, 24, "", function(v) bloomS.s = v; if bloomFx then pcall(function() bloomFx.Size = v end) end end)
-shadersTab:slider("Threshold", 0, 2, 0.5, "", function(v) bloomS.t = v; if bloomFx then pcall(function() bloomFx.Threshold = v end) end end)
+ShadersGroup:AddToggle("BloomToggle", {
+    Text = "Bloom", Default = false,
+    Callback = function(v)
+        pcall(function()
+            if v then
+                if not bloomFx then bloomFx = Instance.new("BloomEffect"); bloomFx.Intensity = bloomS.i; bloomFx.Size = bloomS.s; bloomFx.Threshold = bloomS.t end
+                bloomFx.Parent = game:GetService("Lighting")
+            elseif bloomFx then bloomFx:Destroy(); bloomFx = nil end
+        end)
+    end,
+})
+ShadersGroup:AddSlider("BloomIntensity", { Text = "Intensity", Default = 1, Min = 0, Max = 5, Rounding = 2, Suffix = "x", Callback = function(v) bloomS.i = v; if bloomFx then pcall(function() bloomFx.Intensity = v end) end end })
+ShadersGroup:AddSlider("BloomSize", { Text = "Size", Default = 24, Min = 0, Max = 100, Rounding = 1, Suffix = "", Callback = function(v) bloomS.s = v; if bloomFx then pcall(function() bloomFx.Size = v end) end end })
+ShadersGroup:AddSlider("BloomThreshold", { Text = "Threshold", Default = 0.5, Min = 0, Max = 2, Rounding = 2, Suffix = "", Callback = function(v) bloomS.t = v; if bloomFx then pcall(function() bloomFx.Threshold = v end) end end })
 
-shadersTab:divider()
-shadersTab:label("Color Grading")
-shadersTab:toggle("Color Grading", false, function(v)
-    pcall(function()
-        if v then
-            if not ccFx then ccFx = Instance.new("ColorCorrectionEffect"); ccFx.Saturation = ccS.sat; ccFx.Contrast = ccS.con; ccFx.Brightness = ccS.bri; ccFx.TintColor = ccS.tint end
-            ccFx.Parent = game:GetService("Lighting")
-        elseif ccFx then ccFx:Destroy(); ccFx = nil end
-    end)
-end)
-shadersTab:slider("Saturation", -1, 1, 0.2, "", function(v) ccS.sat = v; if ccFx then pcall(function() ccFx.Saturation = v end) end end)
-shadersTab:slider("Contrast", -1, 1, 0.1, "", function(v) ccS.con = v; if ccFx then pcall(function() ccFx.Contrast = v end) end end)
-shadersTab:slider("Brightness", -1, 1, 0, "", function(v) ccS.bri = v; if ccFx then pcall(function() ccFx.Brightness = v end) end end)
-shadersTab:colorpicker("Tint", Color3.new(1, 1, 1), false, function(v) ccS.tint = v; if ccFx then pcall(function() ccFx.TintColor = v end) end end)
+ShadersGroup:AddDivider()
 
-shadersTab:divider()
-shadersTab:label("Vignette")
-shadersTab:toggle("Vignette", false, function(v)
-    pcall(function()
-        if v then
-            if not vigGui then
-                vigGui = Instance.new("ScreenGui"); vigGui.Name = "Vignette"; vigGui.ResetOnSpawn = false; vigGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; vigGui.IgnoreGuiInset = true
-                vigImg = Instance.new("ImageLabel"); vigImg.Size = UDim2.new(1, 0, 1, 0); vigImg.BackgroundTransparency = 1; vigImg.Image = "rbxassetid://4316120033"; vigImg.ImageColor3 = Color3.new(0, 0, 0); vigImg.ImageTransparency = 0.5; vigImg.Parent = vigGui
+ShadersGroup:AddToggle("ColorToggle", {
+    Text = "Color Grading", Default = false,
+    Callback = function(v)
+        pcall(function()
+            if v then
+                if not ccFx then ccFx = Instance.new("ColorCorrectionEffect"); ccFx.Saturation = ccS.sat; ccFx.Contrast = ccS.con; ccFx.Brightness = ccS.bri; ccFx.TintColor = ccS.tint end
+                ccFx.Parent = game:GetService("Lighting")
+            elseif ccFx then ccFx:Destroy(); ccFx = nil end
+        end)
+    end,
+})
+ShadersGroup:AddSlider("ColorSaturation", { Text = "Saturation", Default = 0.2, Min = -1, Max = 1, Rounding = 2, Suffix = "", Tooltip = "-1 grayscale", Callback = function(v) ccS.sat = v; if ccFx then pcall(function() ccFx.Saturation = v end) end end })
+ShadersGroup:AddSlider("ColorContrast", { Text = "Contrast", Default = 0.1, Min = -1, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) ccS.con = v; if ccFx then pcall(function() ccFx.Contrast = v end) end end })
+ShadersGroup:AddSlider("ColorBrightness", { Text = "Brightness", Default = 0, Min = -1, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) ccS.bri = v; if ccFx then pcall(function() ccFx.Brightness = v end) end end })
+ShadersGroup:AddColorPicker("ColorTint", { Default = Color3.new(1, 1, 1), Title = "Tint", Callback = function(v) ccS.tint = v; if ccFx then pcall(function() ccFx.TintColor = v end) end end })
+
+ShadersGroup:AddDivider()
+
+ShadersGroup:AddToggle("VignetteToggle", {
+    Text = "Vignette", Default = false,
+    Callback = function(v)
+        pcall(function()
+            if v then
+                if not vigGui then
+                    vigGui = Instance.new("ScreenGui"); vigGui.Name = "Vignette"; vigGui.ResetOnSpawn = false; vigGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; vigGui.IgnoreGuiInset = true
+                    vigImg = Instance.new("ImageLabel"); vigImg.Size = UDim2.new(1, 0, 1, 0); vigImg.BackgroundTransparency = 1; vigImg.Image = "rbxassetid://4316120033"; vigImg.ImageColor3 = Color3.new(0, 0, 0); vigImg.ImageTransparency = 0.5; vigImg.Parent = vigGui
+                end
+                pcall(function() vigGui.Parent = LP:WaitForChild("PlayerGui", 5) end)
+                if not vigGui.Parent then pcall(function() vigGui.Parent = CoreGui end) end
+            elseif vigGui then vigGui:Destroy(); vigGui = nil; vigImg = nil end
+        end)
+    end,
+})
+ShadersGroup:AddSlider("VignetteIntensity", { Text = "Darkness", Default = 0.5, Min = 0, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) if vigImg then pcall(function() vigImg.ImageTransparency = 1 - v end) end end })
+
+ShadersGroup:AddDivider()
+
+ShadersGroup:AddToggle("GlossyToggle", {
+    Text = "Glossy OP1", Default = false,
+    Callback = function(v)
+        pcall(function()
+            local l = game:GetService("Lighting")
+            if v then
+                l.Brightness = 2.5; l.OutdoorAmbient = Color3.new(1, 1, 1); l.Ambient = Color3.new(1, 1, 1); l.GlobalShadows = false; l.FogEnd = 1e5
+                for _, p in pairs(workspace:GetDescendants()) do if p:IsA("BasePart") and not p:IsA("Terrain") then p.Material = Enum.Material.ForceField end end
+            else
+                l.Brightness = 1; l.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5); l.Ambient = Color3.new(); l.GlobalShadows = true; l.FogEnd = 1e5
+                for _, p in pairs(workspace:GetDescendants()) do if p:IsA("BasePart") and not p:IsA("Terrain") then p.Material = Enum.Material.SmoothPlastic end end
             end
-            pcall(function() vigGui.Parent = LP:WaitForChild("PlayerGui", 5) end)
-            if not vigGui.Parent then pcall(function() vigGui.Parent = CoreGui end) end
-        elseif vigGui then vigGui:Destroy(); vigGui = nil; vigImg = nil end
-    end)
-end)
-shadersTab:slider("Darkness", 0, 1, 0.5, "", function(v) if vigImg then pcall(function() vigImg.ImageTransparency = 1 - v end) end end)
+        end)
+    end,
+})
 
-shadersTab:divider()
-shadersTab:label("Glossy OP1")
-shadersTab:toggle("Glossy OP1", false, function(v)
-    pcall(function()
-        local l = game:GetService("Lighting")
-        if v then
-            l.Brightness = 2.5; l.OutdoorAmbient = Color3.new(1, 1, 1); l.Ambient = Color3.new(1, 1, 1); l.GlobalShadows = false; l.FogEnd = 1e5
-            for _, p in pairs(workspace:GetDescendants()) do if p:IsA("BasePart") and not p:IsA("Terrain") then p.Material = Enum.Material.ForceField end end
-        else
-            l.Brightness = 1; l.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5); l.Ambient = Color3.new(); l.GlobalShadows = true; l.FogEnd = 1e5
-            for _, p in pairs(workspace:GetDescendants()) do if p:IsA("BasePart") and not p:IsA("Terrain") then p.Material = Enum.Material.SmoothPlastic end end
-        end
-    end)
-end)
-shadersTab:slider("FOV", 60, 120, 90, " deg", function(v) pcall(function() workspace.CurrentCamera.FieldOfView = v end) end)
+ShadersGroup:AddSlider("FOVSlider", { Text = "FOV", Default = 90, Min = 60, Max = 120, Rounding = 1, Suffix = " deg", Callback = function(v) pcall(function() workspace.CurrentCamera.FieldOfView = v end) end })
 
--- Auto-enable bypass
-task.wait(0.5)
+-- Config / UI Settings
+
+SaveManager:SetLibrary(Library)
+ThemeManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+ThemeManager:SetIgnoreIndexes({})
+SaveManager:SetFolder("OP1King/configs")
+ThemeManager:SetFolder("OP1King")
+SaveManager:BuildConfigSection(ConfigTab)
+ThemeManager:ApplyToTab(SettingsTab)
+
+Window:SelectTab(1)
+Library:Notify("OP1 King loaded. Bypass auto-enabled.", 4)
 enableBypass()
-w:notify("OP1 King", "loaded. Bypass auto-enabled.", 4)
