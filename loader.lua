@@ -340,6 +340,27 @@ local nrEnabled = false
 local nrVKeep = 0
 local nrHKeep = 0
 local nrThread = nil
+local nrHookedGuns = {}
+
+local function hookGunRecoil(gun)
+    if not gun or nrHookedGuns[gun] then return end
+    nrHookedGuns[gun] = true
+    local origRecoil = gun.recoil_function
+    if origRecoil then
+        gun.recoil_function = function(...)
+            if nrEnabled then return end
+            if origRecoil then return origRecoil(...) end
+        end
+    end
+    local origSpin = gun.spin or gun.kickback
+    if origSpin then
+        local spinKey = gun.spin and "spin" or "kickback"
+        gun[spinKey] = function(...)
+            if nrEnabled then return end
+            if origSpin then return origSpin(...) end
+        end
+    end
+end
 
 local function enableNoRecoil()
     if nrEnabled then return end
@@ -351,11 +372,14 @@ local function enableNoRecoil()
                 local okCh, char = pcall(cm.get_char, cm)
                 if okCh and char and char.values then
                     local gun = char.values.equipped
-                    if gun and gun.states then
-                        local okV, curV = pcall(gun.states.recoil_up.get, gun.states.recoil_up)
-                        if okV then pcall(gun.states.recoil_up.set, gun.states.recoil_up, curV * nrVKeep) end
-                        local okH, curH = pcall(gun.states.recoil_side.get, gun.states.recoil_side)
-                        if okH then pcall(gun.states.recoil_side.set, gun.states.recoil_side, curH * nrHKeep) end
+                    if gun then
+                        hookGunRecoil(gun)
+                        if gun.states then
+                            local okV, curV = pcall(gun.states.recoil_up.get, gun.states.recoil_up)
+                            if okV then pcall(gun.states.recoil_up.set, gun.states.recoil_up, curV * nrVKeep) end
+                            local okH, curH = pcall(gun.states.recoil_side.get, gun.states.recoil_side)
+                            if okH then pcall(gun.states.recoil_side.set, gun.states.recoil_side, curH * nrHKeep) end
+                        end
                     end
                 end
             end
@@ -367,6 +391,7 @@ end
 
 local function disableNoRecoil()
     nrEnabled = false
+    nrHookedGuns = {}
     if nrThread then task.cancel(nrThread); nrThread = nil end
     Library:Notify("No Recoil disabled", 2)
 end
