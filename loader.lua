@@ -336,41 +336,51 @@ SilentAimGroup:AddButton({ Text = "Toggle", Func = function() if silentAimHooked
 
 local NoRecoilGroup = CombatTab:AddRightGroupbox("No Recoil")
 
-local gunModuleNr = nil
-local oldRecoilFunc = nil
-local noRecoilHooked = false
-
-local function getGunModuleNR()
-    if gunModuleNr then return gunModuleNr end
-    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
-    if s then gunModuleNr = m end
-    return gunModuleNr
-end
+local nrEnabled = false
+local nrVertMult = 1
+local nrHorzMult = 1
+local nrThread = nil
 
 local function enableNoRecoil()
-    if noRecoilHooked then return end
-    local mod = getGunModuleNR()
-    if not mod then Library:Notify("No Recoil: failed to load Gun module", 3) return end
-    oldRecoilFunc = mod.recoil_function
-    mod.recoil_function = function(...)
-        if noRecoilHooked then return end
-        if oldRecoilFunc then return oldRecoilFunc(...) end
-    end
-    noRecoilHooked = true; Library:Notify("No Recoil enabled", 2)
+    if nrEnabled then return end
+    nrEnabled = true
+    nrThread = task.spawn(function()
+        while nrEnabled do
+            local ok, cm = pcall(require, ReplicatedStorage.Modules.Character)
+            if ok then
+                local okCh, char = pcall(cm.get_char, cm)
+                if okCh and char and char.values then
+                    local gun = char.values.equipped
+                    if gun and gun.states then
+                        if nrVertMult > 0 then
+                            local okV, curV = pcall(gun.states.recoil_up.get, gun.states.recoil_up)
+                            if okV then pcall(gun.states.recoil_up.set, gun.states.recoil_up, curV * (1 - nrVertMult)) end
+                        end
+                        if nrHorzMult > 0 then
+                            local okH, curH = pcall(gun.states.recoil_side.get, gun.states.recoil_side)
+                            if okH then pcall(gun.states.recoil_side.set, gun.states.recoil_side, curH * (1 - nrHorzMult)) end
+                        end
+                    end
+                end
+            end
+            task.wait()
+        end
+    end)
+    Library:Notify("No Recoil enabled", 2)
 end
 
 local function disableNoRecoil()
-    if not noRecoilHooked then return end
-    local mod = getGunModuleNR()
-    if mod and oldRecoilFunc then mod.recoil_function = oldRecoilFunc end
-    oldRecoilFunc = nil; noRecoilHooked = false; Library:Notify("No Recoil disabled", 2)
+    nrEnabled = false
+    if nrThread then task.cancel(nrThread); nrThread = nil end
+    Library:Notify("No Recoil disabled", 2)
 end
 
 NoRecoilGroup:AddToggle("NoRecoilToggle", {
     Text = "No Recoil", Default = false,
     Callback = function(v) if v then enableNoRecoil() else disableNoRecoil() end end,
 })
-NoRecoilGroup:AddButton({ Text = "Toggle", Func = function() if noRecoilHooked then disableNoRecoil() else enableNoRecoil() end end })
+NoRecoilGroup:AddSlider("NoRecoilV", { Text = "Vertical Cancel", Default = 100, Min = 0, Max = 100, Rounding = 1, Suffix = "%", Callback = function(v) nrVertMult = v / 100 end })
+NoRecoilGroup:AddSlider("NoRecoilH", { Text = "Horizontal Cancel", Default = 100, Min = 0, Max = 100, Rounding = 1, Suffix = "%", Callback = function(v) nrHorzMult = v / 100 end })
 
 -- No Gun Movement
 
