@@ -41,10 +41,8 @@ Loader.Execute();
 
 -- == Bullet TP ==
 do
-    local RS = game:GetService("ReplicatedStorage")
     local Players = game:GetService("Players")
     local LP = Players.LocalPlayer
-    local hooked = false
 
     local function findTarget()
         local char = LP.Character
@@ -66,36 +64,24 @@ do
         return nearest
     end
 
-    local function tryHook()
-        if hooked then return true end
-        local ok, mod = pcall(require, RS.Modules.Items.Item.Gun)
-        if not ok then return false end
-        local orig = mod.get_shoot_look
-        mod.get_shoot_look = function(s)
+    local ok, mod = pcall(require, game.ReplicatedStorage.Modules.Items.Item.Gun)
+    if ok then
+        local origRD = mod.ray_damage
+        mod.ray_damage = function(self, pos, dir, filter, ...)
             if _G.__BTP_ENABLED then
                 local t = findTarget()
                 if t then
                     local head = t:FindFirstChild("Head") or t:FindFirstChildOfClass("BasePart")
-                    if head and workspace.CurrentCamera then
-                        return CFrame.lookAt(workspace.CurrentCamera.CFrame.Position, head.Position)
+                    if head then
+                        dir = (head.Position - pos).Unit * dir.Magnitude
                     end
                 end
             end
-            return orig(s)
+            return origRD(self, pos, dir, filter, ...)
         end
-        hooked = true
-        return true
-    end
-
-    -- keep retrying until Gun module is loaded
-    for i = 1, 10 do
-        if tryHook() then break end
-        task.wait(1)
-    end
-
-    if not hooked then
+        print("Bullet TP: ray_damage hooked")
+    else
         warn("Bullet TP: failed to hook Gun module")
-        return
     end
 
     local UIS = game:GetService("UserInputService")
