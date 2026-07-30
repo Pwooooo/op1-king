@@ -15,7 +15,6 @@ local Window = Library:CreateWindow({
 local BypassTab = Window:AddTab("Bypass")
 local CombatTab = Window:AddTab("Combat")
 local VisualTab = Window:AddTab("Visual")
-local ShadersTab = Window:AddTab("Shaders")
 local ConfigTab = Window:AddTab("Config")
 local SettingsTab = Window:AddTab("Settings")
 
@@ -835,230 +834,89 @@ NoShakeGroup:AddButton({
 })
 
 
--- Shaders tab
+-- Shaders (Visual tab)
 
-local bloomFx = nil
-local bloomSettings = { intensity = 1, size = 24, threshold = 0.5 }
+local VfxGroup = VisualTab:AddRightGroupbox("Shaders")
 
-local SfxGroup = ShadersTab:AddLeftGroupbox("Bloom")
+local bloomFx, bloomS = nil, { i = 1, s = 24, t = 0.5 }
+local ccFx, ccS = nil, { sat = 0.2, con = 0.1, bri = 0, tint = Color3.new(1, 1, 1) }
+local vigGui, vigImg = nil, nil
 
-SfxGroup:AddToggle("BloomToggle", {
+VfxGroup:AddToggle("BloomToggle", {
     Text = "Bloom",
     Default = false,
-    Tooltip = "Bright surfaces bleed light into surrounding pixels",
     Callback = function(v)
         pcall(function()
             if v then
-                if not bloomFx then
-                    bloomFx = Instance.new("BloomEffect")
-                    bloomFx.Intensity = bloomSettings.intensity
-                    bloomFx.Size = bloomSettings.size
-                    bloomFx.Threshold = bloomSettings.threshold
-                end
+                if not bloomFx then bloomFx = Instance.new("BloomEffect"); bloomFx.Intensity = bloomS.i; bloomFx.Size = bloomS.s; bloomFx.Threshold = bloomS.t end
                 bloomFx.Parent = game:GetService("Lighting")
-            else
-                if bloomFx then bloomFx:Destroy(); bloomFx = nil end
-            end
+            elseif bloomFx then bloomFx:Destroy(); bloomFx = nil end
         end)
     end,
 })
+VfxGroup:AddSlider("BloomIntensity", { Text = "Intensity", Default = 1, Min = 0, Max = 5, Rounding = 2, Suffix = "x", Callback = function(v) bloomS.i = v; if bloomFx then pcall(function() bloomFx.Intensity = v end) end end })
+VfxGroup:AddSlider("BloomSize", { Text = "Size", Default = 24, Min = 0, Max = 100, Rounding = 1, Suffix = "", Callback = function(v) bloomS.s = v; if bloomFx then pcall(function() bloomFx.Size = v end) end end })
+VfxGroup:AddSlider("BloomThreshold", { Text = "Threshold", Default = 0.5, Min = 0, Max = 2, Rounding = 2, Suffix = "", Callback = function(v) bloomS.t = v; if bloomFx then pcall(function() bloomFx.Threshold = v end) end end })
 
-SfxGroup:AddDivider()
+VfxGroup:AddDivider()
 
-SfxGroup:AddSlider("BloomIntensity", {
-    Text = "Intensity",
-    Default = 1, Min = 0, Max = 5, Rounding = 2, Suffix = "x",
-    Callback = function(v)
-        bloomSettings.intensity = v
-        if bloomFx then pcall(function() bloomFx.Intensity = v end) end
-    end,
-})
-
-SfxGroup:AddSlider("BloomSize", {
-    Text = "Size",
-    Default = 24, Min = 0, Max = 100, Rounding = 1, Suffix = "",
-    Callback = function(v)
-        bloomSettings.size = v
-        if bloomFx then pcall(function() bloomFx.Size = v end) end
-    end,
-})
-
-SfxGroup:AddSlider("BloomThreshold", {
-    Text = "Threshold",
-    Default = 0.5, Min = 0, Max = 2, Rounding = 2, Suffix = "",
-    Callback = function(v)
-        bloomSettings.threshold = v
-        if bloomFx then pcall(function() bloomFx.Threshold = v end) end
-    end,
-})
-
--- Color Grading
-local ccFx = nil
-local ccSettings = { saturation = 0.2, contrast = 0.1, brightness = 0, tint = Color3.new(1, 1, 1) }
-
-local CgGroup = ShadersTab:AddLeftGroupbox("Color Grading")
-
-CgGroup:AddToggle("ColorToggle", {
+VfxGroup:AddToggle("ColorToggle", {
     Text = "Color Grading",
     Default = false,
-    Tooltip = "Adjust saturation, contrast, brightness, and tint",
     Callback = function(v)
         pcall(function()
             if v then
-                if not ccFx then
-                    ccFx = Instance.new("ColorCorrectionEffect")
-                    ccFx.Saturation = ccSettings.saturation
-                    ccFx.Contrast = ccSettings.contrast
-                    ccFx.Brightness = ccSettings.brightness
-                    ccFx.TintColor = ccSettings.tint
-                end
+                if not ccFx then ccFx = Instance.new("ColorCorrectionEffect"); ccFx.Saturation = ccS.sat; ccFx.Contrast = ccS.con; ccFx.Brightness = ccS.bri; ccFx.TintColor = ccS.tint end
                 ccFx.Parent = game:GetService("Lighting")
-            else
-                if ccFx then ccFx:Destroy(); ccFx = nil end
-            end
+            elseif ccFx then ccFx:Destroy(); ccFx = nil end
         end)
     end,
 })
+VfxGroup:AddSlider("ColorSaturation", { Text = "Saturation", Default = 0.2, Min = -1, Max = 1, Rounding = 2, Suffix = "", Tooltip = "-1 grayscale", Callback = function(v) ccS.sat = v; if ccFx then pcall(function() ccFx.Saturation = v end) end end })
+VfxGroup:AddSlider("ColorContrast", { Text = "Contrast", Default = 0.1, Min = -1, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) ccS.con = v; if ccFx then pcall(function() ccFx.Contrast = v end) end end })
+VfxGroup:AddSlider("ColorBrightness", { Text = "Brightness", Default = 0, Min = -1, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) ccS.bri = v; if ccFx then pcall(function() ccFx.Brightness = v end) end end })
+VfxGroup:AddColorPicker("ColorTint", { Title = "Tint", Default = Color3.new(1, 1, 1), Callback = function(v) ccS.tint = v; if ccFx then pcall(function() ccFx.TintColor = v end) end end })
 
-CgGroup:AddDivider()
+VfxGroup:AddDivider()
 
-CgGroup:AddSlider("ColorSaturation", {
-    Text = "Saturation",
-    Default = 0.2, Min = -1, Max = 1, Rounding = 2, Suffix = "",
-    Tooltip = "-1 = grayscale, 0 = normal, 1 = oversaturated",
-    Callback = function(v)
-        ccSettings.saturation = v
-        if ccFx then pcall(function() ccFx.Saturation = v end) end
-    end,
-})
-
-CgGroup:AddSlider("ColorContrast", {
-    Text = "Contrast",
-    Default = 0.1, Min = -1, Max = 1, Rounding = 2, Suffix = "",
-    Callback = function(v)
-        ccSettings.contrast = v
-        if ccFx then pcall(function() ccFx.Contrast = v end) end
-    end,
-})
-
-CgGroup:AddSlider("ColorBrightness", {
-    Text = "Brightness",
-    Default = 0, Min = -1, Max = 1, Rounding = 2, Suffix = "",
-    Callback = function(v)
-        ccSettings.brightness = v
-        if ccFx then pcall(function() ccFx.Brightness = v end) end
-    end,
-})
-
-CgGroup:AddDivider()
-
-CgGroup:AddColorPicker("ColorTint", {
-    Title = "Tint Color",
-    Default = Color3.new(1, 1, 1),
-    Tooltip = "Color tint applied to the scene",
-    Callback = function(v)
-        ccSettings.tint = v
-        if ccFx then pcall(function() ccFx.TintColor = v end) end
-    end,
-})
-
--- Right column: Vignette, Glossy, FOV
-
-local VigGroup = ShadersTab:AddRightGroupbox("Vignette")
-
-local vigGui = nil
-local vigImg = nil
-
-VigGroup:AddToggle("VignetteToggle", {
+VfxGroup:AddToggle("VignetteToggle", {
     Text = "Vignette",
     Default = false,
-    Tooltip = "Darkens screen corners for cinematic look",
     Callback = function(v)
         pcall(function()
             if v then
                 if not vigGui then
-                    vigGui = Instance.new("ScreenGui")
-                    vigGui.Name = "VignetteOverlay"
-                    vigGui.ResetOnSpawn = false
-                    vigGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-                    vigGui.IgnoreGuiInset = true
-                    vigImg = Instance.new("ImageLabel")
-                    vigImg.Size = UDim2.new(1, 0, 1, 0)
-                    vigImg.BackgroundTransparency = 1
-                    vigImg.Image = "rbxassetid://4316120033"
-                    vigImg.ImageColor3 = Color3.new(0, 0, 0)
-                    vigImg.ImageTransparency = 0.5
-                    vigImg.Parent = vigGui
+                    vigGui = Instance.new("ScreenGui"); vigGui.Name = "Vignette"; vigGui.ResetOnSpawn = false; vigGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; vigGui.IgnoreGuiInset = true
+                    vigImg = Instance.new("ImageLabel"); vigImg.Size = UDim2.new(1, 0, 1, 0); vigImg.BackgroundTransparency = 1; vigImg.Image = "rbxassetid://4316120033"; vigImg.ImageColor3 = Color3.new(0, 0, 0); vigImg.ImageTransparency = 0.5; vigImg.Parent = vigGui
                 end
                 pcall(function() vigGui.Parent = LP:WaitForChild("PlayerGui", 5) end)
-                if not vigGui.Parent then
-                    pcall(function() vigGui.Parent = CoreGui end)
-                end
-            else
-                if vigGui then vigGui:Destroy(); vigGui = nil; vigImg = nil end
-            end
+                if not vigGui.Parent then pcall(function() vigGui.Parent = CoreGui end) end
+            elseif vigGui then vigGui:Destroy(); vigGui = nil; vigImg = nil end
         end)
     end,
 })
+VfxGroup:AddSlider("VignetteIntensity", { Text = "Darkness", Default = 0.5, Min = 0, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) if vigImg then pcall(function() vigImg.ImageTransparency = 1 - v end) end end })
 
-VigGroup:AddDivider()
+VfxGroup:AddDivider()
 
-VigGroup:AddSlider("VignetteIntensity", {
-    Text = "Darkness",
-    Default = 0.5, Min = 0, Max = 1, Rounding = 2, Suffix = "",
-    Tooltip = "How dark the vignette edges are",
-    Callback = function(v)
-        if vigImg then pcall(function() vigImg.ImageTransparency = 1 - v end) end
-    end,
-})
-
--- Glossy
-local GlossyGroup = ShadersTab:AddRightGroupbox("Glossy OP1")
-
-GlossyGroup:AddToggle("GlossyToggle", {
+VfxGroup:AddToggle("GlossyToggle", {
     Text = "Glossy OP1",
     Default = false,
-    Tooltip = "ForceField material + max brightness",
     Callback = function(v)
         pcall(function()
-            local lighting = game:GetService("Lighting")
+            local l = game:GetService("Lighting")
             if v then
-                lighting.Brightness = 2.5
-                lighting.OutdoorAmbient = Color3.new(1, 1, 1)
-                lighting.Ambient = Color3.new(1, 1, 1)
-                lighting.GlobalShadows = false
-                lighting.FogEnd = 1e5
-                for _, p in pairs(workspace:GetDescendants()) do
-                    if p:IsA("BasePart") and not p:IsA("Terrain") then
-                        p.Material = Enum.Material.ForceField
-                    end
-                end
+                l.Brightness = 2.5; l.OutdoorAmbient = Color3.new(1, 1, 1); l.Ambient = Color3.new(1, 1, 1); l.GlobalShadows = false; l.FogEnd = 1e5
+                for _, p in pairs(workspace:GetDescendants()) do if p:IsA("BasePart") and not p:IsA("Terrain") then p.Material = Enum.Material.ForceField end end
             else
-                lighting.Brightness = 1
-                lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
-                lighting.Ambient = Color3.new()
-                lighting.GlobalShadows = true
-                lighting.FogEnd = 1e5
-                for _, p in pairs(workspace:GetDescendants()) do
-                    if p:IsA("BasePart") and not p:IsA("Terrain") then
-                        p.Material = Enum.Material.SmoothPlastic
-                    end
-                end
+                l.Brightness = 1; l.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5); l.Ambient = Color3.new(); l.GlobalShadows = true; l.FogEnd = 1e5
+                for _, p in pairs(workspace:GetDescendants()) do if p:IsA("BasePart") and not p:IsA("Terrain") then p.Material = Enum.Material.SmoothPlastic end end
             end
         end)
     end,
 })
 
-GlossyGroup:AddDivider()
-
-GlossyGroup:AddSlider("FOVSlider", {
-    Text = "FOV",
-    Default = 90, Min = 60, Max = 120, Rounding = 1, Suffix = " deg",
-    Tooltip = "Camera field of view",
-    Callback = function(v)
-        pcall(function() workspace.CurrentCamera.FieldOfView = v end)
-    end,
-})
+VfxGroup:AddSlider("FOVSlider", { Text = "FOV", Default = 90, Min = 60, Max = 120, Rounding = 1, Suffix = " deg", Callback = function(v) pcall(function() workspace.CurrentCamera.FieldOfView = v end) end })
 
 Library:SetWatermark("OP1 King")
 
