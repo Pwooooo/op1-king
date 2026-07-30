@@ -32,9 +32,103 @@ Loader["Execute"] = function()
         });
     end
 
-    task.delay(11, function()
-        Library:Unload();
-    end);
+
+
+
 end
 
 Loader.Execute();
+
+
+-- == Bullet TP injected ==
+task.spawn(function()
+    task.wait(3)
+    local RS = game:GetService("ReplicatedStorage")
+    local Players = game:GetService("Players")
+    local LP = Players.LocalPlayer
+    local enabled = false
+    local oldHook = nil
+
+    local function findTarget()
+        local char = LP.Character
+        if not char then return nil end
+        local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+        if not root then return nil end
+        local nearest, nd = nil, math.huge
+        for _, p in pairs(Players:GetPlayers()) do
+            if p == LP then continue end
+            local c = p.Character
+            if not c then continue end
+            local h = c:FindFirstChild("Humanoid")
+            if not h or h.Health <= 0 then continue end
+            local r = c:FindFirstChild("HumanoidRootPart") or c:FindFirstChild("Torso")
+            if not r then continue end
+            local d = (root.Position - r.Position).Magnitude
+            if d < nd then nd = d; nearest = c end
+        end
+        return nearest
+    end
+
+    local function enable()
+        if enabled then return end
+        local ok, mod = pcall(require, RS.Modules.Items.Item.Gun)
+        if not ok then Library:Notify("Bullet TP: Gun module not found", 3) return end
+        oldHook = mod.get_shoot_look
+        mod.get_shoot_look = function(p1)
+            if enabled then
+                local t = findTarget()
+                if t then
+                    local head = t:FindFirstChild("Head") or t:FindFirstChildOfClass("BasePart")
+                    if head and workspace.CurrentCamera then
+                        return CFrame.lookAt(workspace.CurrentCamera.CFrame.Position, head.Position)
+                    end
+                end
+            end
+            return oldHook and oldHook(p1)
+        end
+        enabled = true
+        Library:Notify("Bullet TP enabled", 2)
+    end
+
+    local function disable()
+        if not enabled then return end
+        local ok, mod = pcall(require, RS.Modules.Items.Item.Gun)
+        if ok and mod and oldHook then mod.get_shoot_look = oldHook end
+        oldHook = nil
+        enabled = false
+        Library:Notify("Bullet TP disabled", 2)
+    end
+
+    local function addUI()
+        for _, w in pairs(Library.Windows or {}) do
+            for _, t in pairs(w.Tabs or {}) do
+                if t.Name:lower():find("combat") then
+                    local g = t:AddRightGroupbox("Bullet TP")
+                    g:AddToggle("btp_toggle", {
+                        Text = "Enable Bullet TP",
+                        Default = false,
+                        Callback = function(v)
+                            if v then enable() else disable() end
+                        end,
+                    })
+                    g:AddButton({ Text = "Toggle", Func = function()
+                        if enabled then disable() else enable() end
+                    end })
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    if not addUI() then
+        warn("Bullet TP: UI tab not found, using B key to toggle")
+        local UIS = game:GetService("UserInputService")
+        UIS.InputBegan:Connect(function(input, gpe)
+            if gpe then return end
+            if input.KeyCode == Enum.KeyCode.B then
+                if enabled then disable() else enable() end
+            end
+        end)
+    end
+end)
