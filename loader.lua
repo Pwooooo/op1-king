@@ -339,22 +339,9 @@ local NoRecoilGroup = CombatTab:AddRightGroupbox("No Recoil")
 local nrEnabled = false
 local nrVKeep = 0
 local nrHKeep = 0
-local nrOldShoot = nil
+local nrOrigRecoil = nil
 local nrCharValues = nil
 local nrCamCF = nil
-local nrRSConn = nil
-
-local function nrClearRecoil()
-    if nrCamCF then
-        pcall(function()
-            local off = nrCamCF:get_offset("shoot")
-            if off then off.Value = CFrame.new() end
-        end)
-    end
-    if nrCharValues and nrCharValues.old_cam_render then
-        nrCharValues.old_cam_render = CFrame.new()
-    end
-end
 
 local function enableNoRecoil()
     if nrEnabled then return end
@@ -363,41 +350,39 @@ local function enableNoRecoil()
     local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
     if s then mod = m end
 
-    if mod then
-        nrOldShoot = mod.shoot
-        mod.shoot = function(a0, a1, a2, a3)
-            if nrEnabled then
-                if a1 and a1.values then
-                    nrCharValues = a1.values
-                    if a1.values.cframes then
-                        nrCamCF = a1.values.cframes:get("camera")
-                    end
-                end
-                if a0 and a0.recoil and a0.recoil.func and not a0._nrPatched then
-                    a0._nrPatched = true
-                    local oldFunc = a0.recoil.func
-                    a0.recoil.func = function(self)
-                        if nrEnabled and nrVKeep == 0 and nrHKeep == 0 then return end
-                        if oldFunc then return oldFunc(self) end
-                    end
-                end
-                if a0 and a0.states then
-                    if nrVKeep < 1 then
-                        local ok, v = pcall(a0.states.recoil_up.get, a0.states.recoil_up)
-                        if ok then pcall(a0.states.recoil_up.set, a0.states.recoil_up, v * nrVKeep) end
-                    end
-                    if nrHKeep < 1 then
-                        local ok, v = pcall(a0.states.recoil_side.get, a0.states.recoil_side)
-                        if ok then pcall(a0.states.recoil_side.set, a0.states.recoil_side, v * nrHKeep) end
+    if mod and mod.recoil_function then
+        nrOrigRecoil = hookfunction(mod.recoil_function, newcclosure(function(a0, a1)
+            if nrEnabled and nrVKeep == 0 and nrHKeep == 0 then return end
+            if nrOrigRecoil then return nrOrigRecoil(a0, a1) end
+        end))
+    end
+
+    -- Clear any existing recoil offset every frame as backup
+    game:GetService("RunService").RenderStepped:Connect(function()
+        if not nrEnabled then return end
+        if not nrCharValues or not nrCamCF then
+            local cm
+            local ok, m2 = pcall(require, ReplicatedStorage.Modules.Character)
+            if ok then cm = m2 end
+            if cm then
+                local okCh, chr = pcall(cm.get_char, cm)
+                if okCh and chr and chr.values then
+                    nrCharValues = chr.values
+                    if chr.values.cframes then
+                        nrCamCF = chr.values.cframes:get("camera")
                     end
                 end
             end
-            if nrOldShoot then return nrOldShoot(a0, a1, a2, a3) end
         end
-    end
-
-    nrRSConn = game:GetService("RunService").RenderStepped:Connect(function()
-        if nrEnabled then nrClearRecoil() end
+        if nrCamCF then
+            pcall(function()
+                local off = nrCamCF:get_offset("shoot")
+                if off then off.Value = CFrame.new() end
+            end)
+        end
+        if nrCharValues and nrCharValues.old_cam_render then
+            nrCharValues.old_cam_render = CFrame.new()
+        end
     end)
 
     Library:Notify("No Recoil enabled", 2)
@@ -405,16 +390,14 @@ end
 
 local function disableNoRecoil()
     nrEnabled = false
-    if nrRSConn then nrRSConn:Disconnect(); nrRSConn = nil end
-    nrCharValues = nil
-    nrCamCF = nil
-    local mod
-    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
-    if s then mod = m end
-    if mod then
-        if nrOldShoot and mod.shoot ~= nrOldShoot then mod.shoot = nrOldShoot end
+    if nrOrigRecoil then
+        local mod
+        local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
+        if s and m and m.recoil_function then
+            hookfunction(m.recoil_function, nrOrigRecoil)
+        end
+        nrOrigRecoil = nil
     end
-    nrOldShoot = nil
     Library:Notify("No Recoil disabled", 2)
 end
 
