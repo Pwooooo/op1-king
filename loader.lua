@@ -558,13 +558,11 @@ NoShakeGroup:AddButton({ Text = "Toggle", Func = function() if noShakeHooked the
 
 -- Shaders tab
 
-local ShadersGroup = ShadersTab:AddLeftGroupbox("Shaders")
+local SfxGroup = ShadersTab:AddLeftGroupbox("Bloom / Glow")
 
 local bloomFx, bloomS = nil, { i = 1, s = 24, t = 0.5 }
-local ccFx, ccS = nil, { sat = 0.2, con = 0.1, bri = 0, tint = Color3.new(1, 1, 1) }
-local vigGui, vigImg = nil, nil
 
-ShadersGroup:AddToggle("BloomToggle", {
+SfxGroup:AddToggle("SfxBloomT", {
     Text = "Bloom", Default = false,
     Callback = function(v)
         pcall(function()
@@ -575,13 +573,15 @@ ShadersGroup:AddToggle("BloomToggle", {
         end)
     end,
 })
-ShadersGroup:AddSlider("BloomIntensity", { Text = "Intensity", Default = 1, Min = 0, Max = 5, Rounding = 2, Suffix = "x", Callback = function(v) bloomS.i = v; if bloomFx then pcall(function() bloomFx.Intensity = v end) end end })
-ShadersGroup:AddSlider("BloomSize", { Text = "Size", Default = 24, Min = 0, Max = 100, Rounding = 1, Suffix = "", Callback = function(v) bloomS.s = v; if bloomFx then pcall(function() bloomFx.Size = v end) end end })
-ShadersGroup:AddSlider("BloomThreshold", { Text = "Threshold", Default = 0.5, Min = 0, Max = 2, Rounding = 2, Suffix = "", Callback = function(v) bloomS.t = v; if bloomFx then pcall(function() bloomFx.Threshold = v end) end end })
+SfxGroup:AddSlider("SfxBloomI", { Text = "Intensity", Default = 1, Min = 0, Max = 5, Rounding = 2, Suffix = "x", Callback = function(v) bloomS.i = v; if bloomFx then pcall(function() bloomFx.Intensity = v end) end end })
+SfxGroup:AddSlider("SfxBloomS", { Text = "Size", Default = 24, Min = 0, Max = 100, Rounding = 1, Suffix = "", Callback = function(v) bloomS.s = v; if bloomFx then pcall(function() bloomFx.Size = v end) end end })
+SfxGroup:AddSlider("SfxBloomT", { Text = "Threshold", Default = 0.5, Min = 0, Max = 2, Rounding = 2, Suffix = "", Callback = function(v) bloomS.t = v; if bloomFx then pcall(function() bloomFx.Threshold = v end) end end })
 
-ShadersGroup:AddDivider()
+local CgGroup = ShadersTab:AddRightGroupbox("Color Grading")
 
-ShadersGroup:AddToggle("ColorToggle", {
+local ccFx, ccS = nil, { sat = 0.2, con = 0.1, bri = 0, tint = Color3.new(1, 1, 1) }
+
+CgGroup:AddToggle("SfxColorT", {
     Text = "Color Grading", Default = false,
     Callback = function(v)
         pcall(function()
@@ -592,14 +592,16 @@ ShadersGroup:AddToggle("ColorToggle", {
         end)
     end,
 })
-ShadersGroup:AddSlider("ColorSaturation", { Text = "Saturation", Default = 0.2, Min = -1, Max = 1, Rounding = 2, Suffix = "", Tooltip = "-1 grayscale", Callback = function(v) ccS.sat = v; if ccFx then pcall(function() ccFx.Saturation = v end) end end })
-ShadersGroup:AddSlider("ColorContrast", { Text = "Contrast", Default = 0.1, Min = -1, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) ccS.con = v; if ccFx then pcall(function() ccFx.Contrast = v end) end end })
-ShadersGroup:AddSlider("ColorBrightness", { Text = "Brightness", Default = 0, Min = -1, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) ccS.bri = v; if ccFx then pcall(function() ccFx.Brightness = v end) end end })
-ShadersGroup:AddColorPicker("ColorTint", { Default = Color3.new(1, 1, 1), Title = "Tint", Callback = function(v) ccS.tint = v; if ccFx then pcall(function() ccFx.TintColor = v end) end end })
+CgGroup:AddSlider("SfxSat", { Text = "Saturation", Default = 0.2, Min = -1, Max = 1, Rounding = 2, Suffix = "", Tooltip = "-1 = grayscale", Callback = function(v) ccS.sat = v; if ccFx then pcall(function() ccFx.Saturation = v end) end end })
+CgGroup:AddSlider("SfxCon", { Text = "Contrast", Default = 0.1, Min = -1, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) ccS.con = v; if ccFx then pcall(function() ccFx.Contrast = v end) end end })
+CgGroup:AddSlider("SfxBri", { Text = "Brightness", Default = 0, Min = -1, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) ccS.bri = v; if ccFx then pcall(function() ccFx.Brightness = v end) end end })
+CgGroup:AddColorPicker("SfxTint", { Default = Color3.new(1, 1, 1), Title = "Tint", Callback = function(v) ccS.tint = v; if ccFx then pcall(function() ccFx.TintColor = v end) end end })
 
-ShadersGroup:AddDivider()
+local VigGroup = ShadersTab:AddLeftGroupbox("Vignette")
 
-ShadersGroup:AddToggle("VignetteToggle", {
+local vigGui, vigImg = nil, nil
+
+VigGroup:AddToggle("SfxVigT", {
     Text = "Vignette", Default = false,
     Callback = function(v)
         pcall(function()
@@ -614,11 +616,11 @@ ShadersGroup:AddToggle("VignetteToggle", {
         end)
     end,
 })
-ShadersGroup:AddSlider("VignetteIntensity", { Text = "Darkness", Default = 0.5, Min = 0, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) if vigImg then pcall(function() vigImg.ImageTransparency = 1 - v end) end end })
+VigGroup:AddSlider("SfxVigI", { Text = "Darkness", Default = 0.5, Min = 0, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) if vigImg then pcall(function() vigImg.ImageTransparency = 1 - v end) end end })
 
-ShadersGroup:AddDivider()
+local GlossGroup = ShadersTab:AddRightGroupbox("Effects")
 
-ShadersGroup:AddToggle("GlossyToggle", {
+GlossGroup:AddToggle("SfxGlossT", {
     Text = "Glossy OP1", Default = false,
     Callback = function(v)
         pcall(function()
@@ -633,8 +635,7 @@ ShadersGroup:AddToggle("GlossyToggle", {
         end)
     end,
 })
-
-ShadersGroup:AddSlider("FOVSlider", { Text = "FOV", Default = 90, Min = 60, Max = 120, Rounding = 1, Suffix = " deg", Callback = function(v) pcall(function() workspace.CurrentCamera.FieldOfView = v end) end })
+GlossGroup:AddSlider("SfxFOV", { Text = "FOV", Default = 90, Min = 60, Max = 120, Rounding = 1, Suffix = " deg", Callback = function(v) pcall(function() workspace.CurrentCamera.FieldOfView = v end) end })
 
 -- Config / UI Settings
 
