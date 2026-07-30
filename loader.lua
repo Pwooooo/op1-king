@@ -144,6 +144,7 @@ do
         Values = {},
         Default = "",
         Callback = function(v)
+            selectedCfg = v
             if v and v ~= "" then loadConfig(v) end
         end,
     })
@@ -159,33 +160,40 @@ do
         Library:Notify("Reset to default", 2)
     end })
 
-    -- Autoload: persists last config name via writefile
-    local autoloadToggle = false
+    -- Autoload via writefile
     local autoloadFile = "tsb_spoof_autoload.txt"
     local function saveAutoload(name)
-        local ok = pcall(writefile, autoloadFile, name or "")
+        pcall(writefile, autoloadFile, name or "")
     end
     local function loadAutoload()
         local ok, data = pcall(readfile, autoloadFile)
         return ok and data or nil
     end
 
+    local selectedCfg = ""
     local cg4 = configTab:AddRightGroupbox("Autoload")
-    cg4:AddToggle("autoload", {
-        Text = "Autoload last config on start",
-        Default = false,
-        Callback = function(v)
-            autoloadToggle = v
-            if not v then saveAutoload("") end
-        end,
-    })
-    cg4:AddLabel("Last config will load automatically")
+    local autoloadLabel = cg4:AddLabel("No config set for autoload")
+    cg4:AddButton({ Text = "Set As Autoload", Func = function()
+        if selectedCfg and selectedCfg ~= "" then
+            saveAutoload(selectedCfg)
+            autoloadLabel:SetText("Autoload: " .. selectedCfg)
+            Library:Notify("Autoload set to: " .. selectedCfg, 2)
+        else
+            Library:Notify("Select a config from the dropdown first", 2)
+        end
+    end })
+    cg4:AddButton({ Text = "Clear Autoload", Func = function()
+        saveAutoload("")
+        autoloadLabel:SetText("No config set for autoload")
+        Library:Notify("Autoload cleared", 2)
+    end })
 
-    -- Try loading autoload config on start
+    -- Load autoload on start
     local lastCfg = loadAutoload()
     if lastCfg and lastCfg ~= "" and configs[lastCfg] then
         task.wait(0.5)
         loadConfig(lastCfg)
+        autoloadLabel:SetText("Autoload: " .. lastCfg)
         Library:Notify("Autoloaded config: " .. lastCfg, 3)
     end
 end
