@@ -478,7 +478,7 @@ TracerGroup:AddToggle("TracerToggle", {
     Callback = function(v) if v then enableTracers() else disableTracers() end end,
 })
 TracerGroup:AddSlider("TracerWidth", { Text = "Width", Default = 0.5, Min = 0.1, Max = 3, Rounding = 1, Suffix = " studs", Callback = function(v) tracerWidth = v end })
-TracerGroup:AddColorPicker("TracerColor", { Default = Color3.fromRGB(255, 200, 50), Title = "Tracer Color", Callback = function(v) tracerColor = v end })
+TracerGroup:AddLabel("Tracer Color"):AddColorPicker("TracerColor", { Default = Color3.fromRGB(255, 200, 50), Title = "Tracer Color", Callback = function(v) tracerColor = v end })
 TracerGroup:AddButton({ Text = "Toggle", Func = function() if tracerHooked then disableTracers() else enableTracers() end end })
 
 -- No Screen Shake
@@ -595,7 +595,7 @@ CgGroup:AddToggle("SfxColorT", {
 CgGroup:AddSlider("SfxSat", { Text = "Saturation", Default = 0.2, Min = -1, Max = 1, Rounding = 2, Suffix = "", Tooltip = "-1 = grayscale", Callback = function(v) ccS.sat = v; if ccFx then pcall(function() ccFx.Saturation = v end) end end })
 CgGroup:AddSlider("SfxCon", { Text = "Contrast", Default = 0.1, Min = -1, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) ccS.con = v; if ccFx then pcall(function() ccFx.Contrast = v end) end end })
 CgGroup:AddSlider("SfxBri", { Text = "Brightness", Default = 0, Min = -1, Max = 1, Rounding = 2, Suffix = "", Callback = function(v) ccS.bri = v; if ccFx then pcall(function() ccFx.Brightness = v end) end end })
-CgGroup:AddColorPicker("SfxTint", { Default = Color3.new(1, 1, 1), Title = "Tint", Callback = function(v) ccS.tint = v; if ccFx then pcall(function() ccFx.TintColor = v end) end end })
+CgGroup:AddLabel("Tint Color"):AddColorPicker("SfxTint", { Default = Color3.new(1, 1, 1), Title = "Tint", Callback = function(v) ccS.tint = v; if ccFx then pcall(function() ccFx.TintColor = v end) end end })
 
 local VigGroup = ShadersTab:AddLeftGroupbox("Vignette")
 
