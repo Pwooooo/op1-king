@@ -40,8 +40,7 @@ end
 Loader.Execute();
 
 -- == Bullet TP ==
-task.spawn(function()
-    task.wait(1)
+do
     local RS = game:GetService("ReplicatedStorage")
     local Players = game:GetService("Players")
     local LP = Players.LocalPlayer
@@ -108,4 +107,5 @@ task.spawn(function()
             Library:Notify("Bullet TP " .. (enabled and "enabled" or "disabled"), 2)
         end
     end)
-end)
+end
+
