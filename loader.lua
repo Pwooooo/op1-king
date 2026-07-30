@@ -39,10 +39,9 @@ end
 
 Loader.Execute();
 
-
 -- == Bullet TP injected ==
 task.spawn(function()
-    task.wait(3)
+    task.wait(0.5)
     local RS = game:GetService("ReplicatedStorage")
     local Players = game:GetService("Players")
     local LP = Players.LocalPlayer
@@ -99,11 +98,15 @@ task.spawn(function()
         Library:Notify("Bullet TP disabled", 2)
     end
 
-    local function addUI()
-        for _, w in pairs(Library.Windows or {}) do
-            for _, t in pairs(w.Tabs or {}) do
-                if t.Name:lower():find("combat") then
-                    local g = t:AddRightGroupbox("Bullet TP")
+    local oldCreate = Library.CreateWindow
+    Library.CreateWindow = function(self, info)
+        local win = oldCreate(self, info)
+        if win then
+            local oldAddTab = win.AddTab
+            win.AddTab = function(self2, name)
+                local tab = oldAddTab(self2, name)
+                if name and name:lower():find("combat") then
+                    local g = tab:AddRightGroupbox("Bullet TP")
                     g:AddToggle("btp_toggle", {
                         Text = "Enable Bullet TP",
                         Default = false,
@@ -114,21 +117,10 @@ task.spawn(function()
                     g:AddButton({ Text = "Toggle", Func = function()
                         if enabled then disable() else enable() end
                     end })
-                    return true
                 end
+                return tab
             end
         end
-        return false
-    end
-
-    if not addUI() then
-        warn("Bullet TP: UI tab not found, using B key to toggle")
-        local UIS = game:GetService("UserInputService")
-        UIS.InputBegan:Connect(function(input, gpe)
-            if gpe then return end
-            if input.KeyCode == Enum.KeyCode.B then
-                if enabled then disable() else enable() end
-            end
-        end)
+        return win
     end
 end)
