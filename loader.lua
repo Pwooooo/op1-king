@@ -339,115 +339,61 @@ local NoRecoilGroup = CombatTab:AddRightGroupbox("No Recoil")
 local nrEnabled = false
 local nrVKeep = 0
 local nrHKeep = 0
-local nrConns = {}
-local nrOldGetDelta = nil
+local nrOldShoot = nil
 
-local function getGunModNR()
-    if gunModForNR then return gunModForNR end
-    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
-    if s then gunModForNR = m end
-    return gunModForNR
+local function hookGunRecoilSafe(gun)
+    if not gun or gun._nrPatched or not gun.recoil then return end
+    gun._nrPatched = true
+    local oldFunc = gun.recoil.func
+    gun.recoil.func = function(self)
+        if nrEnabled then
+            if nrVKeep == 0 and nrHKeep == 0 then return end
+        end
+        if oldFunc then return oldFunc(self) end
+    end
 end
 
 local function enableNoRecoil()
     if nrEnabled then return end
     nrEnabled = true
-    local rs = game:GetService("RunService")
-    local uis = game:GetService("UserInputService")
-    if uis.GetMouseDelta then
-        nrOldGetDelta = uis.GetMouseDelta
-        uis.GetMouseDelta = function()
-            if nrEnabled then
-                local d = nrOldGetDelta(uis)
-                return Vector2.new(d.X * nrHKeep, d.Y * nrVKeep)
-            end
-            if nrOldGetDelta then return nrOldGetDelta(uis) end
-            return Vector2.new()
-        end
-    end
-    nrConns[#nrConns + 1] = rs.RenderStepped:Connect(function()
-        if not nrEnabled then return end
-        local okCM, cm = pcall(require, ReplicatedStorage.Modules.Character)
-        if okCM then
-            local okCh, char = pcall(cm.get_char, cm)
-            if okCh and char and char.values then
-                local gun = char.values.equipped
-                if gun then
-                    if not gun._nrHooked then
-                        gun._nrHooked = true
-                        local recoilFn = gun.recoil_function
-                        if recoilFn then
-                            gun.recoil_function = function(...)
-                                if nrEnabled and (nrVKeep == 0 or nrHKeep == 0) then return end
-                                if recoilFn then return recoilFn(...) end
-                            end
-                        end
-                        local getShoot = gun.get_shoot_look
-                        if getShoot then
-                            gun.get_shoot_look = function(...)
-                                if nrEnabled then
-                                    local cam = workspace.CurrentCamera
-                                    if cam then return cam.CFrame.LookVector end
-                                end
-                                if getShoot then return getShoot(...) end
-                            end
-                        end
-                        local kickF = gun.kickback
-                        if kickF then
-                            gun.kickback = function(...)
-                                if nrEnabled then return end
-                                if kickF then return kickF(...) end
-                            end
-                        end
-                        local setupS = gun.setup_shot
-                        if setupS then
-                            gun.setup_shot = function(...)
-                                if not nrEnabled then return setupS(...) end
-                                if nrVKeep == 0 or nrHKeep == 0 then return end
-                                return setupS(...)
-                            end
-                        end
-                        local shootFn = gun.shoot
-                        if shootFn then
-                            gun.shoot = function(...)
-                                if nrEnabled and (nrVKeep == 0 or nrHKeep == 0) then return end
-                                if shootFn then return shootFn(...) end
-                            end
-                        end
-                        local sendS = gun.send_shoot
-                        if sendS then
-                            gun.send_shoot = function(...)
-                                if nrEnabled and (nrVKeep == 0 or nrHKeep == 0) then return end
-                                if sendS then return sendS(...) end
-                            end
-                        end
+    local mod
+    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
+    if s then mod = m end
+
+    if mod then
+        nrOldShoot = mod.shoot
+        mod.shoot = function(a0, a1, a2, a3)
+            if nrEnabled and a0 then
+                hookGunRecoilSafe(a0)
+                if a0.states then
+                    if nrVKeep < 1 then
+                        local ok, v = pcall(a0.states.recoil_up.get, a0.states.recoil_up)
+                        if ok then pcall(a0.states.recoil_up.set, a0.states.recoil_up, v * nrVKeep) end
                     end
-                    if gun.states then
-                        if nrVKeep < 1 then
-                            local okV, curV = pcall(gun.states.recoil_up.get, gun.states.recoil_up)
-                            if okV then pcall(gun.states.recoil_up.set, gun.states.recoil_up, curV * nrVKeep) end
-                        end
-                        if nrHKeep < 1 then
-                            local okH, curH = pcall(gun.states.recoil_side.get, gun.states.recoil_side)
-                            if okH then pcall(gun.states.recoil_side.set, gun.states.recoil_side, curH * nrHKeep) end
-                        end
+                    if nrHKeep < 1 then
+                        local ok, v = pcall(a0.states.recoil_side.get, a0.states.recoil_side)
+                        if ok then pcall(a0.states.recoil_side.set, a0.states.recoil_side, v * nrHKeep) end
                     end
                 end
             end
+            if nrOldShoot then return nrOldShoot(a0, a1, a2, a3) end
         end
-    end)
+    end
+
     Library:Notify("No Recoil enabled", 2)
 end
 
 local function disableNoRecoil()
     nrEnabled = false
-    for _, c in ipairs(nrConns) do c:Disconnect() end
-    nrConns = {}
-    local uis = game:GetService("UserInputService")
-    pcall(function()
-        if nrOldGetDelta and uis.GetMouseDelta ~= nrOldGetDelta then uis.GetMouseDelta = nrOldGetDelta end
-    end)
-    nrOldGetDelta = nil
+    local mod
+    local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
+    if s then mod = m end
+
+    if mod then
+        if nrOldShoot and mod.shoot ~= nrOldShoot then mod.shoot = nrOldShoot end
+    end
+
+    nrOldShoot = nil
     Library:Notify("No Recoil disabled", 2)
 end
 
