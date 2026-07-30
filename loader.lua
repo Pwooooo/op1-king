@@ -626,10 +626,18 @@ GlossGroup:AddToggle("SfxGlossT", {
         pcall(function()
             local l = game:GetService("Lighting")
             if v then
-                l.Brightness = 1.2; l.GlobalShadows = false
+                l.Brightness = 1.2
+                if not l:FindFirstChild("GlossBloom") then
+                    local b = Instance.new("BloomEffect"); b.Name = "GlossBloom"; b.Intensity = 0.4; b.Size = 16; b.Threshold = 0.3; b.Parent = l
+                else l.GlossBloom.Enabled = true end
+                if not l:FindFirstChild("GlossColor") then
+                    local c = Instance.new("ColorCorrectionEffect"); c.Name = "GlossColor"; c.Saturation = 0.1; c.Contrast = 0.15; c.Brightness = 0.05; c.Parent = l
+                else l.GlossColor.Enabled = true end
                 for _, p in pairs(workspace:GetDescendants()) do if p:IsA("BasePart") and not p:IsA("Terrain") then p.Material = Enum.Material.Mirror end end
             else
-                l.Brightness = 1; l.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5); l.Ambient = Color3.new(); l.GlobalShadows = true; l.FogEnd = 1e5
+                l.Brightness = 1
+                if l:FindFirstChild("GlossBloom") then l.GlossBloom.Enabled = false end
+                if l:FindFirstChild("GlossColor") then l.GlossColor.Enabled = false end
                 for _, p in pairs(workspace:GetDescendants()) do if p:IsA("BasePart") and not p:IsA("Terrain") then p.Material = Enum.Material.SmoothPlastic; p.Reflectance = 0 end end
             end
         end)
