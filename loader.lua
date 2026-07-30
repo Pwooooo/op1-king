@@ -626,8 +626,8 @@ GlossGroup:AddToggle("SfxGlossT", {
         pcall(function()
             local l = game:GetService("Lighting")
             if v then
-                l.Brightness = 2.5; l.OutdoorAmbient = Color3.new(1, 1, 1); l.Ambient = Color3.new(1, 1, 1); l.GlobalShadows = false; l.FogEnd = 1e5
-                for _, p in pairs(workspace:GetDescendants()) do if p:IsA("BasePart") and not p:IsA("Terrain") then p.Material = Enum.Material.SmoothPlastic; p.Reflectance = 0.6 end end
+                l.Brightness = 1.5; l.OutdoorAmbient = Color3.fromRGB(180, 180, 200); l.Ambient = Color3.fromRGB(80, 80, 100); l.GlobalShadows = false; l.FogEnd = 1e5
+                for _, p in pairs(workspace:GetDescendants()) do if p:IsA("BasePart") and not p:IsA("Terrain") then p.Material = Enum.Material.Glass; p.Reflectance = 0.3 end end
             else
                 l.Brightness = 1; l.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5); l.Ambient = Color3.new(); l.GlobalShadows = true; l.FogEnd = 1e5
                 for _, p in pairs(workspace:GetDescendants()) do if p:IsA("BasePart") and not p:IsA("Terrain") then p.Material = Enum.Material.SmoothPlastic; p.Reflectance = 0 end end
