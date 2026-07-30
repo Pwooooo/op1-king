@@ -620,24 +620,51 @@ VigGroup:AddSlider("SfxVigI", { Text = "Darkness", Default = 0.5, Min = 0, Max =
 
 local GlossGroup = ShadersTab:AddRightGroupbox("Effects")
 
+local GlossReflector = nil
+local GlossReflectorCon = nil
 GlossGroup:AddToggle("SfxGlossT", {
     Text = "Glossy OP1", Default = false,
     Callback = function(v)
         pcall(function()
             local l = game:GetService("Lighting")
             if v then
-                l.Brightness = 1.2; l.Ambient = Color3.fromRGB(20, 20, 25)
+                l.Brightness = 1.15; l.Ambient = Color3.fromRGB(12, 12, 18)
                 if not l:FindFirstChild("GlossBloom") then
-                    local b = Instance.new("BloomEffect"); b.Name = "GlossBloom"; b.Intensity = 0.6; b.Size = 20; b.Threshold = 0.2; b.Parent = l
+                    local b = Instance.new("BloomEffect"); b.Name = "GlossBloom"; b.Intensity = 0.5; b.Size = 18; b.Threshold = 0.25; b.Parent = l
                 else l.GlossBloom.Enabled = true end
                 if not l:FindFirstChild("GlossColor") then
-                    local c = Instance.new("ColorCorrectionEffect"); c.Name = "GlossColor"; c.Saturation = 0.25; c.Contrast = 0.3; c.Brightness = 0.08; c.Parent = l
+                    local c = Instance.new("ColorCorrectionEffect"); c.Name = "GlossColor"; c.Saturation = 0.2; c.Contrast = 0.25; c.Brightness = 0.06; c.Parent = l
                 else l.GlossColor.Enabled = true end
+                if not l:FindFirstChild("GlossVignette") then
+                    local g = Instance.new("ScreenGui"); g.Name = "GlossVignette"; g.ResetOnSpawn = false; g.IgnoreGuiInset = true; g.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+                    local vg = Instance.new("ImageLabel"); vg.Size = UDim2.new(1, 0, 1, 0); vg.BackgroundTransparency = 1; vg.Image = "rbxassetid://4316120033"; vg.ImageColor3 = Color3.new(0, 0, 0); vg.ImageTransparency = 0.5; vg.Parent = g
+                    pcall(function() g.Parent = LP:WaitForChild("PlayerGui", 5) end)
+                    if not g.Parent then pcall(function() g.Parent = CoreGui end) end
+                    l:SetAttribute("GlossVg", g)
+                else pcall(function() l:GetAttribute("GlossVg").Visible = true end) end
+                if not GlossReflector or not GlossReflector.Parent then
+                    GlossReflector = Instance.new("Part"); GlossReflector.Name = "GlossReflector"; GlossReflector.Anchored = true; GlossReflector.CanCollide = false; GlossReflector.CanTouch = false; GlossReflector.Material = Enum.Material.Mirror; GlossReflector.Transparency = 0; GlossReflector.Size = Vector3.new(40, 0.2, 40); GlossReflector.TopSurface = Enum.SurfaceType.Smooth; GlossReflector.BottomSurface = Enum.SurfaceType.Smooth; GlossReflector.Parent = workspace
+                    GlossReflectorCon = game:GetService("RunService").RenderStepped:Connect(function()
+                        local char = LP.Character
+                        if not char then return end
+                        local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+                        if root then
+                            local pos = root.Position
+                            local ray = workspace:Raycast(pos + Vector3.new(0, 5, 0), Vector3.new(0, -15, 0), {Blacklist = {char}})
+                            local gy = ray and ray.Position.Y or math.max(pos.Y - 3, 0)
+                            GlossReflector.CFrame = CFrame.new(pos.X, gy + 0.1, pos.Z)
+                        end
+                    end)
+                else GlossReflector.Transparency = 0 end
                 for _, p in pairs(workspace:GetDescendants()) do if p:IsA("BasePart") and not p:IsA("Terrain") then p.Material = Enum.Material.Mirror end end
             else
                 l.Brightness = 1; l.Ambient = Color3.new()
                 if l:FindFirstChild("GlossBloom") then l.GlossBloom.Enabled = false end
                 if l:FindFirstChild("GlossColor") then l.GlossColor.Enabled = false end
+                local vg = l:GetAttribute("GlossVg")
+                if vg then pcall(function() vg.Visible = false end) end
+                if GlossReflector then GlossReflector.Transparency = 1 end
+                if GlossReflectorCon then GlossReflectorCon:Disconnect(); GlossReflectorCon = nil end
                 for _, p in pairs(workspace:GetDescendants()) do if p:IsA("BasePart") and not p:IsA("Terrain") then p.Material = Enum.Material.SmoothPlastic; p.Reflectance = 0 end end
             end
         end)
