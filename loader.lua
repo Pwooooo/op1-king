@@ -93,27 +93,62 @@ do
         Library:Notify("Device spoof reset", 2)
     end })
 
-    local cg = configTab:AddLeftGroupbox("Combat")
-    cg:AddToggle("auto_block", { Text = "Auto Block", Default = false })
-    cg:AddToggle("auto_parry", { Text = "Auto Parry", Default = false })
-    cg:AddToggle("auto_combo", { Text = "Auto Combo", Default = false })
+    local configs = { saved = {} }
+    local configName = ""
 
-    local cg2 = configTab:AddLeftGroupbox("Movement")
-    cg2:AddToggle("inf_jump", { Text = "Infinite Jump", Default = false })
-    cg2:AddToggle("no_clip", { Text = "No Clip", Default = false })
-    cg2:AddToggle("speed", { Text = "Speed", Default = false })
-    cg2:AddSlider("speed_val", { Text = "Speed Value", Default = 16, Min = 16, Max = 100 })
+    local function saveConfig(name)
+        configs.saved[name] = { spoof = currentMode }
+        Library:Notify("Config saved: " .. name, 2)
+    end
 
-    local cg3 = configTab:AddRightGroupbox("Visuals")
-    cg3:AddToggle("esp", { Text = "ESP", Default = false })
-    cg3:AddToggle("chams", { Text = "Chams", Default = false })
-    cg3:AddToggle("wall_hack", { Text = "Wall Hack", Default = false })
-    cg3:AddToggle("no_fog", { Text = "No Fog", Default = false })
+    local function loadConfig(name)
+        local c = configs.saved[name]
+        if c then
+            applySpoof(c.spoof)
+            Library:Notify("Config loaded: " .. name, 2)
+        end
+    end
 
-    local cg4 = configTab:AddRightGroupbox("Misc")
-    cg4:AddDropdown("fov", { Text = "FOV", Values = { "60", "70", "80", "90", "100", "120" }, Default = "70" })
-    cg4:AddButton({ Text = "Rejoin", Func = function()
-        game:GetService("TeleportService"):Teleport(game.PlaceId, game:GetService("Players").LocalPlayer)
+    local cg = configTab:AddLeftGroupbox("Config Manager")
+    cg:AddInput("config_name", {
+        Text = "Config Name",
+        Default = "MyConfig",
+        Callback = function(v) configName = v end,
+    })
+    cg:AddButton({ Text = "Create", Func = function()
+        if configName and configName ~= "" then
+            saveConfig(configName)
+        end
+    end })
+    cg:AddButton({ Text = "Save", Func = function()
+        if configName and configName ~= "" then
+            saveConfig(configName)
+        end
+    end })
+
+    local cg2 = configTab:AddLeftGroupbox("Load Config")
+    cg2:AddDropdown("config_list", {
+        Text = "Select Config",
+        Values = {},
+        Default = "",
+        Callback = function(v)
+            if v and v ~= "" then loadConfig(v) end
+        end,
+    })
+    cg2:AddButton({ Text = "Refresh List", Func = function()
+        local names = {}
+        for n in pairs(configs.saved) do table.insert(names, n) end
+        -- update dropdown values
+    end })
+    cg2:AddButton({ Text = "Delete Config", Func = function()
+        -- placeholder
+    end })
+
+    local cg3 = configTab:AddRightGroupbox("Defaults")
+    cg3:AddButton({ Text = "Reset to Default", Func = function()
+        spoofValues = {}
+        currentMode = nil
+        Library:Notify("Reset to default", 2)
     end })
 end
 
