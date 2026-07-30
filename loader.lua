@@ -340,39 +340,15 @@ local nrEnabled = false
 local nrVKeep = 0
 local nrHKeep = 0
 local nrOldShoot = nil
+local nrCamCF = nil
+local nrRSConn = nil
 
-local function blockRecoilOffsets(a0, a1)
-    if not a1 or not a1.values or not a1.values.cframes then return end
-    local camCF = a1.values.cframes:get("camera")
-    if camCF and not camCF._nrCamHooked then
-        camCF._nrCamHooked = true
-        local origSet = camCF.set_offset
-        camCF.set_offset = function(self, name, val)
-            if nrEnabled and name == "shoot" then
-                -- Still record offset so code doesn't break, but clear it
-                local off = origSet(self, name, CFrame.new())
-                if off then off.Value = CFrame.new() end
-                return off
-            end
-            return origSet(self, name, val)
-        end
-        local origRem = camCF.remove_offset
-        camCF.remove_offset = function(self, name)
-            if nrEnabled and name == "shoot" then return end
-            return origRem(self, name)
-        end
-    end
-end
-
-local function hookGunRecoilSafe(gun)
-    if not gun or gun._nrPatched or not gun.recoil then return end
-    gun._nrPatched = true
-    local oldFunc = gun.recoil.func
-    gun.recoil.func = function(self)
-        if nrEnabled then
-            if nrVKeep == 0 and nrHKeep == 0 then return end
-        end
-        if oldFunc then return oldFunc(self) end
+local function nrClearShootOffset()
+    if nrCamCF then
+        pcall(function()
+            local off = nrCamCF:get_offset("shoot")
+            if off then off.Value = CFrame.new() end
+        end)
     end
 end
 
@@ -386,10 +362,17 @@ local function enableNoRecoil()
     if mod then
         nrOldShoot = mod.shoot
         mod.shoot = function(a0, a1, a2, a3)
-            if nrEnabled and a0 then
-                hookGunRecoilSafe(a0)
-                blockRecoilOffsets(a0, a1)
-                if a0.states then
+            if nrEnabled and a1 and a1.values and a1.values.cframes then
+                nrCamCF = a1.values.cframes:get("camera")
+                if a0 and a0.recoil and a0.recoil.func and not a0._nrPatched then
+                    a0._nrPatched = true
+                    local oldFunc = a0.recoil.func
+                    a0.recoil.func = function(self)
+                        if nrEnabled and nrVKeep == 0 and nrHKeep == 0 then return end
+                        if oldFunc then return oldFunc(self) end
+                    end
+                end
+                if a0 and a0.states then
                     if nrVKeep < 1 then
                         local ok, v = pcall(a0.states.recoil_up.get, a0.states.recoil_up)
                         if ok then pcall(a0.states.recoil_up.set, a0.states.recoil_up, v * nrVKeep) end
@@ -404,19 +387,23 @@ local function enableNoRecoil()
         end
     end
 
+    nrRSConn = game:GetService("RunService").RenderStepped:Connect(function()
+        if nrEnabled then nrClearShootOffset() end
+    end)
+
     Library:Notify("No Recoil enabled", 2)
 end
 
 local function disableNoRecoil()
     nrEnabled = false
+    if nrRSConn then nrRSConn:Disconnect(); nrRSConn = nil end
+    nrCamCF = nil
     local mod
     local s, m = pcall(require, ReplicatedStorage.Modules.Items.Item.Gun)
     if s then mod = m end
-
     if mod then
         if nrOldShoot and mod.shoot ~= nrOldShoot then mod.shoot = nrOldShoot end
     end
-
     nrOldShoot = nil
     Library:Notify("No Recoil disabled", 2)
 end
