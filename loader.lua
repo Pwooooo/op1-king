@@ -37,11 +37,8 @@ Loader["Execute"] = function()
 
 end
 
-Loader.Execute();
-
 -- == Bullet TP injected ==
-task.spawn(function()
-    task.wait(0.5)
+do
     local RS = game:GetService("ReplicatedStorage")
     local Players = game:GetService("Players")
     local LP = Players.LocalPlayer
@@ -123,4 +120,6 @@ task.spawn(function()
         end
         return win
     end
-end)
+end
+
+Loader.Execute();
