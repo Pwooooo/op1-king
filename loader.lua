@@ -140,7 +140,7 @@ local StatusLabel = BypassGroup:AddLabel("Bypass: Disabled")
 
 local BypassToggle = BypassGroup:AddToggle("BypassToggle", {
     Text = "Enable Bypass",
-    Default = false,
+    Default = true,
     Callback = function(v)
         if v then enableBypass() else disableBypass() end
     end,
