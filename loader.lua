@@ -1,12 +1,4 @@
--- Clean up old Obsidian ScreenGuis BEFORE loading fresh Library
-for _, v in ipairs(game.CoreGui.RobloxGui:GetChildren()) do
-    if v.Name == "Obsidian" and v:IsA("ScreenGui") then v:Destroy() end
-end
-
 warn("delta furries is not happy")
-local repo            = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/";
-local Library         = loadstring(game:HttpGet(repo .. "Library.lua"))();
-Library.NotifySide    = "Right";
 
 local function mn()
           Library:Notify({
@@ -48,17 +40,24 @@ do
     local UIS = game:GetService("UserInputService")
     local currentMode = nil
     local spoofValues = {}
+
+    -- Hook applies immediately so spoofing works while still joining
     local mt = getrawmetatable and getrawmetatable(game)
     if mt then
-        setreadonly(mt, false)
-        local oldIndex = mt.__index
-        mt.__index = function(self, key)
-            if self == UIS and spoofValues[key] ~= nil then
-                return spoofValues[key]
+        pcall(function()
+            setreadonly(mt, false)
+            local oldIndex = mt.__index
+            mt.__index = function(self, key)
+                if self == UIS and spoofValues[key] ~= nil then
+                    return spoofValues[key]
+                end
+                if type(oldIndex) == "function" then
+                    return oldIndex(self, key)
+                end
+                return oldIndex and oldIndex[key]
             end
-            return oldIndex(self, key)
-        end
-        setreadonly(mt, true)
+            setreadonly(mt, true)
+        end)
     end
 
     local function applySpoof(mode)
@@ -72,6 +71,44 @@ do
             spoofValues = { TouchEnabled = false, KeyboardEnabled = true, MouseEnabled = true, GamepadEnabled = false }
         end
     end
+
+    -- Apply saved autoload device immediately, even while joining
+    pcall(function()
+        local okA, name = pcall(readfile, "tsb_spoof_autoload.txt")
+        if okA and name and name ~= "" then
+            name = name:gsub("^%s*(.-)%s*$", "%1")
+            local okC, data = pcall(readfile, "tsb_spoof_configs.txt")
+            if okC and data and data ~= "" then
+                local decoded = game:GetService("HttpService"):JSONDecode(data)
+                local c = decoded and decoded[name]
+                if c and c.spoof then applySpoof(c.spoof) end
+            end
+        end
+    end)
+
+    -- UI builds after joining so it never crashes during the loading screen
+    task.spawn(function()
+        local ok, err = pcall(function()
+            local Players = game:GetService("Players")
+            if not Players.LocalPlayer then
+                Players.PlayerAdded:Wait()
+            end
+            local CoreGui = game:GetService("CoreGui")
+            local RobloxGui = CoreGui:FindFirstChild("RobloxGui")
+            if not RobloxGui then
+                RobloxGui = CoreGui:WaitForChild("RobloxGui", 60)
+            end
+
+            -- Clean up old Obsidian ScreenGuis
+            if RobloxGui then
+                for _, v in ipairs(RobloxGui:GetChildren()) do
+                    if v.Name == "Obsidian" and v:IsA("ScreenGui") then v:Destroy() end
+                end
+            end
+
+            local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/";
+            local Library = loadstring(game:HttpGet(repo .. "Library.lua"))();
+            Library.NotifySide = "Right";
 
     local win = Library:CreateWindow({
         Name = "TSB Spoofer",
@@ -257,5 +294,8 @@ do
             pcall(function() configDropdown:SetValue(lastCfg) end)
         end
     end
+        end)
+        if not ok then warn("TSB Spoofer UI error: " .. tostring(err)) end
+    end)
 end
 
