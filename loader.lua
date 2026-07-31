@@ -82,7 +82,7 @@ do
     local tab = win:AddTab("Spoofer")
     local configTab = win:AddTab("Config")
     local g = tab:AddLeftGroupbox("Device Type")
-    g:AddDropdown("device_select", {
+    local deviceDropdown = g:AddDropdown("device_select", {
         Text = "Select Device",
         Values = { "Mobile", "Console", "PC" },
         Default = "PC",
@@ -137,7 +137,9 @@ do
     end
 
     local function saveConfig(name)
-        configs[name] = { spoof = currentMode }
+        configs[name] = {
+            spoof = deviceDropdown and deviceDropdown.Value or currentMode,
+        }
         saveAll()
         refreshDropdown()
         Library:Notify("Config saved: " .. name, 2)
@@ -145,8 +147,12 @@ do
 
     local function loadConfig(name)
         local c = configs[name]
-        if c then
-            if c.spoof then applySpoof(c.spoof) end
+        if c and c.spoof then
+            if deviceDropdown then
+                pcall(function() deviceDropdown:SetValue(c.spoof) end)
+            else
+                applySpoof(c.spoof)
+            end
         end
     end
 
@@ -183,6 +189,15 @@ do
             if selectedCfg ~= "" then loadConfig(selectedCfg) end
         end,
     })
+    cg2:AddButton({ Text = "Load", Func = function()
+        local name = trimmedSelected()
+        if name ~= "" then
+            loadConfig(name)
+            Library:Notify("Config loaded: " .. name, 2)
+        else
+            Library:Notify("Select a config from the dropdown first", 2)
+        end
+    end })
     cg2:AddButton({ Text = "Refresh List", Func = refreshDropdown })
     cg2:AddButton({ Text = "Delete Selected", Func = function()
         local name = trimmedSelected()
