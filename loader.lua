@@ -1,8 +1,9 @@
 warn("delta furries is not happy")
-local repo              = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/";
-local Library           = loadstring(game:HttpGet(repo .. "Library.lua"))();
-
-Library.NotifySide      = "Right";
+if not getgenv().Library then
+    local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/";
+    loadstring(game:HttpGet(repo .. "Library.lua"))();
+end
+local Library = getgenv().Library
 
 local function mn()
           Library:Notify({
@@ -69,6 +70,12 @@ do
         end
     end
 
+    -- Clean up old Obsidian ScreenGuis
+    for _, v in ipairs(game.CoreGui.RobloxGui:GetChildren()) do
+        if v.Name == "Obsidian" and v:IsA("ScreenGui") then v:Destroy() end
+    end
+    task.wait(0.1)
+
     local win = Library:CreateWindow({
         Name = "TSB Spoofer",
         Description = "Device Spoofer",
@@ -93,9 +100,31 @@ do
         Library:Notify("Device spoof reset", 2)
     end })
 
+    local configFile = "tsb_spoof_configs.txt"
     local configs = {}
-    local configDropdown
 
+    local function saveAll()
+        local ok, data = pcall(function()
+            return game:GetService("HttpService"):JSONEncode(configs)
+        end)
+        if ok then pcall(writefile, configFile, data) end
+    end
+
+    local function loadAll()
+        local ok, data = pcall(readfile, configFile)
+        if ok and data and data ~= "" then
+            local ok2, decoded = pcall(function()
+                return game:GetService("HttpService"):JSONDecode(data)
+            end)
+            if ok2 and type(decoded) == "table" then
+                configs = decoded
+            end
+        end
+    end
+
+    loadAll()
+
+    local configDropdown
     local function refreshDropdown()
         local names = {}
         for n in pairs(configs) do table.insert(names, n) end
@@ -105,8 +134,8 @@ do
 
     local function saveConfig(name)
         configs[name] = { spoof = currentMode }
+        saveAll()
         refreshDropdown()
-        if autoloadToggle then saveAutoload(name) end
         Library:Notify("Config saved: " .. name, 2)
     end
 
@@ -114,12 +143,12 @@ do
         local c = configs[name]
         if c then
             if c.spoof then applySpoof(c.spoof) end
-            Library:Notify("Config loaded: " .. name, 2)
         end
     end
 
     local function deleteConfig(name)
         configs[name] = nil
+        saveAll()
         refreshDropdown()
         Library:Notify("Config deleted: " .. name, 2)
     end
@@ -129,13 +158,15 @@ do
     cg:AddInput("config_name", {
         Text = "Config Name",
         Default = "MyConfig",
-        Callback = function(v) cfgName = v end,
+        Callback = function(v) cfgName = (v or ""):gsub("^%s*(.-)%s*$", "%1") end,
     })
     cg:AddButton({ Text = "Create", Func = function()
-        if cfgName and cfgName ~= "" then saveConfig(cfgName) end
+        local name = (cfgName or ""):gsub("^%s*(.-)%s*$", "%1")
+        if name ~= "" then saveConfig(name) end
     end })
     cg:AddButton({ Text = "Save", Func = function()
-        if cfgName and cfgName ~= "" then saveConfig(cfgName) end
+        local name = (cfgName or ""):gsub("^%s*(.-)%s*$", "%1")
+        if name ~= "" then saveConfig(name) end
     end })
 
     local cg2 = configTab:AddLeftGroupbox("Load Config")
@@ -144,13 +175,14 @@ do
         Values = {},
         Default = "",
         Callback = function(v)
-            selectedCfg = v
-            if v and v ~= "" then loadConfig(v) end
+            selectedCfg = (v or ""):gsub("^%s*(.-)%s*$", "%1")
+            if selectedCfg ~= "" then loadConfig(selectedCfg) end
         end,
     })
     cg2:AddButton({ Text = "Refresh List", Func = refreshDropdown })
     cg2:AddButton({ Text = "Delete Selected", Func = function()
-        -- placeholder
+        local name = trimmedSelected()
+        if name ~= "" then deleteConfig(name) end
     end })
 
     local cg3 = configTab:AddRightGroupbox("Defaults")
@@ -171,13 +203,17 @@ do
     end
 
     local selectedCfg = ""
+    local function trimmedSelected()
+        return (selectedCfg or ""):gsub("^%s*(.-)%s*$", "%1")
+    end
     local cg4 = configTab:AddRightGroupbox("Autoload")
     local autoloadLabel = cg4:AddLabel("No config set for autoload")
     cg4:AddButton({ Text = "Set As Autoload", Func = function()
-        if selectedCfg and selectedCfg ~= "" then
-            saveAutoload(selectedCfg)
-            autoloadLabel:SetText("Autoload: " .. selectedCfg)
-            Library:Notify("Autoload set to: " .. selectedCfg, 2)
+        local name = trimmedSelected()
+        if name ~= "" then
+            saveAutoload(name)
+            autoloadLabel:SetText("Autoload: " .. name)
+            Library:Notify("Autoload set to: " .. name, 2)
         else
             Library:Notify("Select a config from the dropdown first", 2)
         end
@@ -188,13 +224,23 @@ do
         Library:Notify("Autoload cleared", 2)
     end })
 
+    refreshDropdown()
+
     -- Load autoload on start
-    local lastCfg = loadAutoload()
-    if lastCfg and lastCfg ~= "" and configs[lastCfg] then
-        task.wait(0.5)
-        loadConfig(lastCfg)
-        autoloadLabel:SetText("Autoload: " .. lastCfg)
-        Library:Notify("Autoloaded config: " .. lastCfg, 3)
+    local lastCfg = (loadAutoload() or ""):gsub("^%s*(.-)%s*$", "%1")
+    if lastCfg and lastCfg ~= "" then
+        local c = configs[lastCfg]
+        if c then
+            if c.spoof then applySpoof(c.spoof) end
+            autoloadLabel:SetText("Autoload: " .. lastCfg)
+        else
+            autoloadLabel:SetText("Autoload config not found: " .. lastCfg)
+        end
+        -- Sync dropdown and selectedCfg to match autoload
+        selectedCfg = lastCfg
+        if configDropdown then
+            pcall(function() configDropdown:SetValue(lastCfg) end)
+        end
     end
 end
 
