@@ -40,6 +40,8 @@ do
     local UIS = game:GetService("UserInputService")
     local currentMode = nil
     local spoofValues = {}
+    local realTouch = UIS.TouchEnabled
+    local realGamepad = UIS.GamepadEnabled
 
     -- Hook applies immediately so spoofing works while still joining
     local mt = getrawmetatable and getrawmetatable(game)
@@ -60,16 +62,39 @@ do
         end)
     end
 
+    local function syncDeviceState(isMobile, isConsole)
+        task.spawn(function()
+            pcall(function()
+                shared.ismobile = isMobile
+                shared.isconsole = isConsole
+                local Players = game:GetService("Players")
+                local lp = Players.LocalPlayer
+                local char = lp and (lp.Character or lp.CharacterAdded:Wait(10))
+                if char then
+                    char:SetAttribute("mobile", isMobile)
+                    local comm = char:FindFirstChild("Communicate")
+                    if comm and comm:IsA("RemoteEvent") then
+                        comm:FireServer({ Goal = "Platform", mobile = isMobile, console = isConsole })
+                    end
+                end
+            end)
+        end)
+    end
+
     local function applySpoof(mode)
         if mode == currentMode then return end
         currentMode = mode
+        local isMobile, isConsole = false, false
         if mode == "Mobile" then
             spoofValues = { TouchEnabled = true, KeyboardEnabled = false, MouseEnabled = false, GamepadEnabled = false }
+            isMobile = true
         elseif mode == "Console" then
             spoofValues = { TouchEnabled = false, KeyboardEnabled = false, MouseEnabled = false, GamepadEnabled = true }
+            isConsole = true
         elseif mode == "PC" then
             spoofValues = { TouchEnabled = false, KeyboardEnabled = true, MouseEnabled = true, GamepadEnabled = false }
         end
+        syncDeviceState(isMobile, isConsole)
     end
 
     -- Apply saved autoload device immediately, even while joining
@@ -85,8 +110,6 @@ do
             end
         end
     end)
-
-    -- UI builds after joining so it never crashes during the loading screen
     task.spawn(function()
         local ok, err = pcall(function()
             local Players = game:GetService("Players")
@@ -131,6 +154,7 @@ do
     g:AddButton({ Text = "Reset", Func = function()
         spoofValues = {}
         currentMode = nil
+        syncDeviceState(realTouch, realGamepad)
         Library:Notify("Device spoof reset", 2)
     end })
 
@@ -245,6 +269,7 @@ do
     cg3:AddButton({ Text = "Reset to Default", Func = function()
         spoofValues = {}
         currentMode = nil
+        syncDeviceState(realTouch, realGamepad)
         Library:Notify("Reset to default", 2)
     end })
 
