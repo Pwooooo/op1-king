@@ -122,6 +122,13 @@ do
     loadAll()
 
     local configDropdown
+    local selectedCfg = ""
+    local function trimmedSelected()
+        local v = selectedCfg
+        if (v == nil or v == "") and configDropdown then v = configDropdown.Value end
+        return (v or ""):gsub("^%s*(.-)%s*$", "%1")
+    end
+
     local function refreshDropdown()
         local names = {}
         for n in pairs(configs) do table.insert(names, n) end
@@ -199,10 +206,6 @@ do
         return ok and data or nil
     end
 
-    local selectedCfg = ""
-    local function trimmedSelected()
-        return (selectedCfg or ""):gsub("^%s*(.-)%s*$", "%1")
-    end
     local cg4 = configTab:AddRightGroupbox("Autoload")
     local autoloadLabel = cg4:AddLabel("No config set for autoload")
     cg4:AddButton({ Text = "Set As Autoload", Func = function()
