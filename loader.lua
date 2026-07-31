@@ -97,6 +97,76 @@ do
         syncDeviceState(isMobile, isConsole)
     end
 
+    -- TSB's CharacterHandler.Client crashes on some servers (its 5s wait for
+    -- "Animate" times out at line 897), which kills the game's M1 attack input
+    -- handler entirely. Fallback: send the same LeftClick goals the game would.
+    local function gameAttackHandlerExists()
+        local ok, conns = pcall(getconnections, UIS.InputBegan)
+        if not ok or not conns then
+            return true
+        end
+        for _, c in ipairs(conns) do
+            local ok2, src = pcall(function() return debug.info(c.Function, "s") end)
+            if ok2 and src and not src:find("Core") then
+                local ok3, uvs = pcall(debug.getupvalues, c.Function)
+                if ok3 and #uvs >= 10 then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    local function sendLeftClick()
+        task.spawn(function()
+            pcall(function()
+                local Players = game:GetService("Players")
+                local lp = Players.LocalPlayer
+                local char = lp and lp.Character
+                if not char then return end
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if not hum or hum.Health <= 0 then return end
+                local comm = char:FindFirstChild("Communicate")
+                if not (comm and comm:IsA("RemoteEvent")) then return end
+                local gacc = shared.getActiveClientCharacter
+                local active = (gacc and gacc()) or char
+                local tool = active:FindFirstChildOfClass("Tool")
+                local msg = { Goal = "LeftClick" }
+                if tool then
+                    msg.ToolName = tool:GetAttribute("Name") or tool.Name
+                    local gcp = shared.GetCrushingPullHit
+                    if gcp then
+                        local ok4, cp = pcall(gcp, tool)
+                        if ok4 then msg.CrushingPull = cp end
+                    end
+                end
+                comm:FireServer(msg)
+            end)
+        end)
+    end
+
+    UIS.InputBegan:Connect(function(io, gpe)
+        if gpe or io.UserInputState ~= Enum.UserInputState.Begin then return end
+        if io.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        if gameAttackHandlerExists() then return end
+        sendLeftClick()
+    end)
+
+    UIS.InputEnded:Connect(function(io, gpe)
+        if gpe or io.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        if gameAttackHandlerExists() then return end
+        task.spawn(function()
+            pcall(function()
+                local lp = game:GetService("Players").LocalPlayer
+                local char = lp and lp.Character
+                local comm = char and char:FindFirstChild("Communicate")
+                if comm and comm:IsA("RemoteEvent") then
+                    comm:FireServer({ Goal = "LeftClickRelease" })
+                end
+            end)
+        end)
+    end)
+
     -- Apply saved autoload device immediately, even while joining
     pcall(function()
         local okA, name = pcall(readfile, "tsb_spoof_autoload.txt")
