@@ -1,9 +1,12 @@
-warn("delta furries is not happy")
-if not getgenv().Library then
-    local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/";
-    loadstring(game:HttpGet(repo .. "Library.lua"))();
+-- Clean up old Obsidian ScreenGuis BEFORE loading fresh Library
+for _, v in ipairs(game.CoreGui.RobloxGui:GetChildren()) do
+    if v.Name == "Obsidian" and v:IsA("ScreenGui") then v:Destroy() end
 end
-local Library = getgenv().Library
+
+warn("delta furries is not happy")
+local repo            = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/";
+local Library         = loadstring(game:HttpGet(repo .. "Library.lua"))();
+Library.NotifySide    = "Right";
 
 local function mn()
           Library:Notify({
@@ -69,12 +72,6 @@ do
             spoofValues = { TouchEnabled = false, KeyboardEnabled = true, MouseEnabled = true, GamepadEnabled = false }
         end
     end
-
-    -- Clean up old Obsidian ScreenGuis
-    for _, v in ipairs(game.CoreGui.RobloxGui:GetChildren()) do
-        if v.Name == "Obsidian" and v:IsA("ScreenGui") then v:Destroy() end
-    end
-    task.wait(0.1)
 
     local win = Library:CreateWindow({
         Name = "TSB Spoofer",
