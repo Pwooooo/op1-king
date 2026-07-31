@@ -86,10 +86,10 @@ do
         currentMode = mode
         local isMobile, isConsole = false, false
         if mode == "Mobile" then
-            spoofValues = { TouchEnabled = true, KeyboardEnabled = false, MouseEnabled = false, GamepadEnabled = false }
+            spoofValues = { TouchEnabled = true, KeyboardEnabled = true, MouseEnabled = true, GamepadEnabled = false }
             isMobile = true
         elseif mode == "Console" then
-            spoofValues = { TouchEnabled = false, KeyboardEnabled = false, MouseEnabled = false, GamepadEnabled = true }
+            spoofValues = { TouchEnabled = false, KeyboardEnabled = true, MouseEnabled = true, GamepadEnabled = true }
             isConsole = true
         elseif mode == "PC" then
             spoofValues = { TouchEnabled = false, KeyboardEnabled = true, MouseEnabled = true, GamepadEnabled = false }
