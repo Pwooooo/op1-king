@@ -87,7 +87,7 @@ local function applyHitbox()
                         end
                         part.Size = origHitboxSizes[part] * hitboxSize
                     end
-                    if plr == lp and (nm == "Right Arm" or nm == "Left Arm" or nm == "Right Leg" or nm == "Left Leg") then
+                    if plr ~= lp and (nm == "Head" or nm == "Torso" or nm == "UpperTorso" or nm == "LowerTorso") then
                         if not origHitboxSizes[part] then
                             origHitboxSizes[part] = part.Size
                         end
@@ -161,6 +161,25 @@ mt.__namecall = function(self, ...)
     local method = getnamecallmethod()
     local ml = method:lower()
     if hitboxEnabled and hitboxRange > 1 then
+        if ml == "getpartboundsinbox" and self == workspace then
+            local cframeArg, sizeArg = select(1, ...), select(2, ...)
+            if select("#", ...) >= 3 then
+                local params = select(3, ...)
+                return oldNamecall(self, cframeArg, sizeArg * hitboxRange, params)
+            else
+                return oldNamecall(self, cframeArg, sizeArg * hitboxRange)
+            end
+        end
+        if ml == "getpartsizeinradius" or ml == "getpartboundsinradius" then
+            local center = select(1, ...)
+            local radius = select(2, ...) * hitboxRange
+            if select("#", ...) >= 3 then
+                local params = select(3, ...)
+                return oldNamecall(self, center, radius, params)
+            else
+                return oldNamecall(self, center, radius)
+            end
+        end
         if ml == "raycast" and self == workspace then
             local origin, direction = select(1, ...), select(2, ...)
             local newDir = direction * hitboxRange
@@ -213,22 +232,19 @@ mt.__namecall = function(self, ...)
     end
     if hitboxEnabled and ml == "fireserver" then
         local ok, t = pcall(select, 1, ...)
-        if ok and type(t) == "table" and t.cframe and t.seq then
+        if ok and type(t) == "table" and t.Goal == "LeftClick" then
             local myChar = Players.LocalPlayer.Character
             if myChar and myChar:FindFirstChild("HumanoidRootPart") then
                 local myPos = myChar.HumanoidRootPart.Position
-                local closest, closestDist = nil, 999
+                local closest, closestDist = nil, 29 * hitboxRange
                 for _, plr in ipairs(Players:GetPlayers()) do
                     if plr ~= Players.LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
                         local d = (plr.Character.HumanoidRootPart.Position - myPos).Magnitude
                         if d < closestDist then closest, closestDist = plr, d end
                     end
                 end
-                if closest and closestDist <= 120 then
-                    local dir = (closest.Character.HumanoidRootPart.Position - myPos).Unit
-                    local offset = math.min(hitboxRange * 4, closestDist - 4)
-                    local fakePos = myPos + dir * offset
-                    t.cframe = CFrame.new(fakePos) * (t.cframe - t.cframe.Position)
+                if closest and closest.Character and closest.Character.PrimaryPart then
+                    t.CrushingPull = closest.Character.PrimaryPart
                 end
             end
         end
@@ -664,6 +680,15 @@ methodLabel.TextSize = 10
 methodLabel.TextXAlignment = Enum.TextXAlignment.Left
 methodLabel.LayoutOrder = 6
 methodLabel.Parent = body
+
+task.spawn(function()
+    while true do
+        if hitboxMethodLog ~= "" and methodLabel.Text ~= hitboxMethodLog then
+            methodLabel.Text = "intercepted: " .. hitboxMethodLog
+        end
+        task.wait(0.5)
+    end
+end)
 
 local captureBtn = Instance.new("TextButton")
 captureBtn.Size = UDim2.new(0, 60, 0, 20)
