@@ -97,9 +97,13 @@ do
         syncDeviceState(isMobile, isConsole)
     end
 
-    -- TSB's CharacterHandler.Client crashes on some servers (its 5s wait for
-    -- "Animate" times out at line 897), which kills the game's M1 attack input
-    -- handler entirely. Fallback: send the same LeftClick goals the game would.
+    -- TSB's CharacterHandler.Client hangs before its input handler on some
+    -- servers (proven: connects S_AutoJump/MessageOut but never reaches its
+    -- UIS.InputBegan connect), killing native M1 attacks entirely. This is a
+    -- faithful replica of the game's own handler (CharacterHandler.Client
+    -- line ~4960): same UIS signals, same Communicate goals, same payloads
+    -- (ToolName, CrushingPull, MousePos, Mobile for console). Active only
+    -- while the real handler is missing, so healthy servers stay untouched.
     local function gameAttackHandlerExists()
         local ok, conns = pcall(getconnections, UIS.InputBegan)
         if not ok or not conns then
@@ -117,39 +121,82 @@ do
         return false
     end
 
-    local function sendLeftClick()
+    local function activeChar()
+        local lp = game:GetService("Players").LocalPlayer
+        local char = lp and lp.Character
+        if not char then
+            return nil
+        end
+        local gacc = shared.getActiveClientCharacter
+        return (gacc and gacc()) or char
+    end
+
+    local function attackMsg(goal)
+        local msg = { Goal = goal }
+        local active = activeChar()
+        local tool = active and active:FindFirstChildOfClass("Tool")
+        if tool then
+            msg.ToolName = tool:GetAttribute("Name") or tool.Name
+            local gcp = shared.GetCrushingPullHit
+            if gcp then
+                local ok, cp = pcall(gcp, tool)
+                if ok then msg.CrushingPull = cp end
+            end
+        end
+        return msg
+    end
+
+    local function sendGoal(msg)
         task.spawn(function()
             pcall(function()
-                local Players = game:GetService("Players")
-                local lp = Players.LocalPlayer
+                local lp = game:GetService("Players").LocalPlayer
                 local char = lp and lp.Character
                 if not char then return end
                 local hum = char:FindFirstChildOfClass("Humanoid")
                 if not hum or hum.Health <= 0 then return end
                 local comm = char:FindFirstChild("Communicate")
                 if not (comm and comm:IsA("RemoteEvent")) then return end
-                local gacc = shared.getActiveClientCharacter
-                local active = (gacc and gacc()) or char
-                local tool = active:FindFirstChildOfClass("Tool")
-                local msg = { Goal = "LeftClick" }
-                if tool then
-                    msg.ToolName = tool:GetAttribute("Name") or tool.Name
-                    local gcp = shared.GetCrushingPullHit
-                    if gcp then
-                        local ok4, cp = pcall(gcp, tool)
-                        if ok4 then msg.CrushingPull = cp end
-                    end
+                if msg.Goal == "LeftClick" or msg.Goal == "RightClick" or msg.Goal == "KeyPress" then
+                    msg.MousePos = lp:GetMouse().Hit
                 end
                 comm:FireServer(msg)
             end)
         end)
     end
 
+    local function isConsoleMode()
+        return currentMode == "Console"
+    end
+
     UIS.InputBegan:Connect(function(io, gpe)
-        if gpe or io.UserInputState ~= Enum.UserInputState.Begin then return end
-        if io.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        if gpe then return end
         if gameAttackHandlerExists() then return end
-        sendLeftClick()
+        local t = io.UserInputType
+        if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
+            local msg = attackMsg("LeftClick")
+            if isConsoleMode() then msg.Mobile = true end
+            sendGoal(msg)
+        elseif t == Enum.UserInputType.MouseButton2 then
+            sendGoal(attackMsg("RightClick"))
+        elseif t == Enum.UserInputType.Keyboard then
+            local msg = { Goal = "KeyPress", Key = io.KeyCode }
+            if io.KeyCode == Enum.KeyCode.G then
+                local char = game:GetService("Players").LocalPlayer and game.Players.LocalPlayer.Character
+                if char and char:FindFirstChildOfClass("Humanoid") then
+                    msg.MoveDirection = char:FindFirstChildOfClass("Humanoid").MoveDirection
+                end
+            end
+            sendGoal(msg)
+        elseif t == Enum.UserInputType.Gamepad1 then
+            local kc = io.KeyCode
+            if kc == Enum.KeyCode.ButtonB then
+                local msg = attackMsg("LeftClick")
+                msg.Mobile = true
+                sendGoal(msg)
+            elseif kc == Enum.KeyCode.ButtonA then
+                sendGoal({ Goal = "KeyPress", Key = Enum.KeyCode.Space })
+            end
+        end
     end)
 
     UIS.InputEnded:Connect(function(io, gpe)
