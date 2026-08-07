@@ -7,6 +7,8 @@ local Cam = workspace.CurrentCamera
 local currentMode = "Console"
 local spoofing = true
 
+print("[TSB-v2] loader v2 loaded (TV enum + fake gamepads)")
+
 local deviceTypes = {
     Mobile = Enum.DeviceType.Tablet,
     Console = Enum.DeviceType.TV,
