@@ -9,7 +9,7 @@ local spoofing = true
 
 local deviceTypes = {
     Mobile = Enum.DeviceType.Tablet,
-    Console = Enum.DeviceType.Desktop,
+    Console = Enum.DeviceType.TV,
     PC = Enum.DeviceType.Desktop,
 }
 
@@ -155,6 +155,11 @@ mt.__namecall = function(self, ...)
             if method == "GetDeviceEnum" then return deviceTypes[currentMode] end
             if method == "GetLastInputType" then return getLastInputType(currentMode) end
             if method == "GetPlatform" then return getPlatformString(currentMode) end
+            if method == "GetConnectedGamepads" then return currentMode == "Console" and { Enum.UserInputType.Gamepad1 } or {} end
+            if method == "GetGamepadConnected" then
+                local g = select(1, ...)
+                return currentMode == "Console" and (not g or g == Enum.UserInputType.Gamepad1 or g == Enum.UserInputType.Gamepad2 or g == Enum.UserInputType.Gamepad3 or g == Enum.UserInputType.Gamepad4)
+            end
         end
         if method == "IsTouchEnabled" then return currentMode == "Mobile" end
     end
@@ -267,6 +272,33 @@ end)
 
 print("[TSB] Hooks installed")
 print("[TSB] UIS:GetDeviceType() =", UIS:GetDeviceType())
+
+-- Re-sync platform so the server marks us Console/Mobile (TSB fires this once at spawn)
+local function resyncPlatform()
+    task.wait(0.1)
+    shared.isconsole = currentMode == "Console"
+    shared.ismobile = currentMode == "Mobile"
+    pcall(function() Players.LocalPlayer:SetAttribute("Console", currentMode == "Console") end)
+    pcall(function() Players.LocalPlayer:SetAttribute("Mobile", currentMode == "Mobile") end)
+    local function fire(char)
+        if not char then return end
+        local comm = char:FindFirstChild("Communicate")
+        if comm and comm:IsA("RemoteEvent") then
+            pcall(function()
+                comm:FireServer({ Goal = "Platform", mobile = currentMode == "Mobile", console = currentMode == "Console" })
+            end)
+        end
+    end
+    local lp = Players.LocalPlayer
+    fire(lp.Character)
+    local conn
+    conn = lp.CharacterAdded:Connect(function(char)
+        task.wait(0.5)
+        fire(char)
+    end)
+    task.delay(20, function() if conn then conn:Disconnect() end end)
+end
+task.spawn(resyncPlatform)
 
 -- UI
 local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
