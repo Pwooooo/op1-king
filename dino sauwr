@@ -29,6 +29,61 @@ CFG.Alive = false
 task.wait(0.1)
 CFG.Alive = true
 
+--[[ Dino Unlock All ]]
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local DataReplicator = ReplicatedStorage.Modules.Game.Resources.DataReplicator
+local Saved = DataReplicator:WaitForChild("Saved")
+
+local DINO_NAMES = {
+    "Achillobator", "Acrocanthosaurus", "Aerotitan", "Alligator Gar", "Allosaurus",
+    "Anomalocaris", "Arambourgiania", "Argentinosaurus", "Arthropleura", "Australovenator",
+    "Avianax", "Beelzebufo", "Borealopelta", "Brachialacer", "Brachytrachelopan",
+    "Caniking", "Carcharodontosaurus", "Carnotaurus", "Coelacanth", "Compsognathus",
+    "Concavenator", "Daspletosaurus", "Deinocheirus", "Deinonychus", "Diabloceratops",
+    "Dilophosaurus", "Dimetrodon", "Diplocaulus", "Diplodocus", "Dodo",
+    "DodoRex", "Dreadnoughtus", "Dunkleosteus", "Eotriceratops", "Errzinyle",
+    "Hatzegopteryx", "Human", "Ichthyovenator", "Iguanodon", "Irritator",
+    "Jaekelopterus", "Jeholopterus", "Kaprosuchus", "Kentrosaurus", "Krab",
+    "Majungasaurus", "Mastodonsaurus", "Megabite", "Meganeura", "Miragaia",
+    "Nanuqderma", "Nyctoderma", "Ornithomimus", "Ouranosaurus", "Pachycephalosaurus",
+    "Pachyrhinosaurus", "Parasaurolophus", "Platecarpus", "Prionosuchus", "Protathlitis",
+    "Protoceratops", "Pteranodon", "Purussaurus", "Saltasaurus", "Shantungosaurus",
+    "Simosuchus", "Spinofaarus", "Spinolestes", "Spinosaurus", "Stegoceras",
+    "Stegosaurus", "Suchomimus", "Tarchia", "Therizinosaurus", "Thoracosaurus",
+    "Trilobite", "Tropeognathus", "Tupandactylus", "Tyrannosaurus", "Wendigo",
+    "Yunnanosaurus",
+}
+
+local DINO_TEMPLATE = { Oxygen = 10, Health = 125, Thirst = 100, Energy = 175, Growth = 0, Hunger = 100 }
+
+local function injectAllDinos()
+    local ok, data = pcall(function()
+        return HttpService:JSONDecode(Saved.Value)
+    end)
+    if not ok or type(data) ~= "table" then return end
+    data.Dinos = data.Dinos or {}
+    for _, name in ipairs(DINO_NAMES) do
+        if not data.Dinos[name] then
+            data.Dinos[name] = DINO_TEMPLATE
+        end
+    end
+    Saved.Value = HttpService:JSONEncode(data)
+end
+
+local function hookDataReplicator()
+    local SendData = ReplicatedStorage.Events.UI:FindFirstChild("SendDataToClient")
+    if SendData then
+        table.insert(CFG.Connections, SendData.OnClientEvent:Connect(function()
+            if CFG.UnlockAllActive then
+                task.wait(0.05)
+                injectAllDinos()
+            end
+        end))
+    end
+end
+hookDataReplicator()
+
 --[[ UI ]]
 if firstLoad then
     local Window = Library:CreateWindow({
@@ -43,6 +98,23 @@ if firstLoad then
     local VisualTab = Window:AddTab("Visuals", "eye")
     local WorldTab = Window:AddTab("World", "globe")
     local MiscTab = Window:AddTab("Misc", "hammer")
+
+    local DinoBox = MiscTab:AddLeftGroupbox("Dinos", "dinosaur")
+    DinoBox:AddToggle("UnlockAll", {
+        Text = "Dinosaur Unlock All",
+        Default = false,
+        Tooltip = "Injects every dino into your client data so the menu shows all 81 as owned. Server-side spawn validation may still apply.",
+        Callback = function(value)
+            CFG.UnlockAllActive = value
+            if value then
+                injectAllDinos()
+            end
+        end,
+    })
+    DinoBox:AddButton("Refresh Menu", function()
+        injectAllDinos()
+        Library:Notify("Injected " .. #DINO_NAMES .. " dinos")
+    end)
 
     local UISettings = Window:AddTab("UI Settings", "settings")
 
