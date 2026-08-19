@@ -82,6 +82,7 @@ local function hookDataReplicator()
         end))
     end
 end
+CFG.Connections = CFG.Connections or {}
 hookDataReplicator()
 
 --[[ UI ]]
@@ -137,7 +138,6 @@ CFG.OnUnload = function()
     end
     CFG.Connections = {}
 end
-CFG.Connections = CFG.Connections or {}
 
 task.spawn(function()
     while CFG.Alive do
