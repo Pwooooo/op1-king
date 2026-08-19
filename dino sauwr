@@ -55,6 +55,11 @@ local DINO_NAMES = {
     "Yunnanosaurus",
 }
 
+local HIDDEN_DINOS = {
+    "Aiko", "Korg", "Minority Destroyer 8000", "Yvaine",
+    "ankylodocus", "malusaurus", "peep", "seal", "wendigo thing",
+}
+
 local DINO_TEMPLATE = { Oxygen = 10, Health = 125, Thirst = 100, Energy = 175, Growth = 0, Hunger = 100 }
 
 local function injectAllDinos()
@@ -68,7 +73,61 @@ local function injectAllDinos()
             data.Dinos[name] = DINO_TEMPLATE
         end
     end
+    for _, name in ipairs(HIDDEN_DINOS) do
+        if not data.Dinos[name] then
+            data.Dinos[name] = DINO_TEMPLATE
+        end
+    end
     Saved.Value = HttpService:JSONEncode(data)
+end
+
+local function addHiddenDinoButtons()
+    local gui = Players.LocalPlayer.PlayerGui:FindFirstChild("Menu")
+    local list = gui and gui:FindFirstChild("PlayPage") and gui.PlayPage:FindFirstChild("DinoList")
+    if not list then return end
+    local template
+    for _, b in ipairs(list:GetChildren()) do
+        if b:IsA("ImageButton") then
+            template = b
+            break
+        end
+    end
+    if not template then return end
+    local existing = {}
+    for _, b in ipairs(list:GetChildren()) do
+        if b:IsA("ImageButton") then
+            local t = b:FindFirstChild("Title")
+            existing[t and t.Text or b.Name] = true
+        end
+    end
+    local added = 0
+    for _, name in ipairs(HIDDEN_DINOS) do
+        if not existing[name] then
+            local btn = template:Clone()
+            btn.Name = name
+            btn.LayoutOrder = 999 + added
+            local title = btn:FindFirstChild("Title")
+            if title then title.Text = name end
+            btn.Visible = true
+            btn.Parent = list
+            table.insert(CFG.Connections, btn.MouseButton1Down:Connect(function()
+                injectAllDinos()
+                local info = gui.PlayPage.Background2 and gui.PlayPage.Background2.Info
+                if info then
+                    local dinoText = info:FindFirstChild("Dinosaur")
+                    if dinoText then dinoText.Text = name end
+                    local spawnBtn = info:FindFirstChild("Button")
+                    if spawnBtn and spawnBtn:FindFirstChild("Title") then
+                        spawnBtn.Title.Text = "Spawn"
+                    end
+                end
+            end))
+            added = added + 1
+        end
+    end
+    if added > 0 then
+        Library:Notify("Added " .. added .. " hidden dinos to menu")
+    end
 end
 
 local function hookDataReplicator()
@@ -104,17 +163,19 @@ if firstLoad then
     DinoBox:AddToggle("UnlockAll", {
         Text = "Dinosaur Unlock All",
         Default = false,
-        Tooltip = "Injects every dino into your client data so the menu shows all 81 as owned. Server-side spawn validation may still apply.",
+        Tooltip = "Injects every dino (incl. 9 hidden dev dinos) into your client data so the menu shows all as owned. Server-side spawn validation may still apply.",
         Callback = function(value)
             CFG.UnlockAllActive = value
             if value then
+                addHiddenDinoButtons()
                 injectAllDinos()
             end
         end,
     })
     DinoBox:AddButton("Refresh Menu", function()
+        addHiddenDinoButtons()
         injectAllDinos()
-        Library:Notify("Injected " .. #DINO_NAMES .. " dinos")
+        Library:Notify("Injected " .. #DINO_NAMES + #HIDDEN_DINOS .. " dinos")
     end)
 
     local UISettings = Window:AddTab("UI Settings", "settings")
