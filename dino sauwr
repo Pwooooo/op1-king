@@ -1,1 +1,74 @@
+-- dino sauwr - (BOSS FIGHT) Pixelated Past
+-- UI: Obsidian (deividcomsono/Obsidian)
 
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+getgenv().DinoSauwr = getgenv().DinoSauwr or {}
+local CFG = getgenv().DinoSauwr
+
+if CFG.Loaded then
+    CFG.Unloading = true
+    task.wait(0.05)
+    if CFG.OnUnload then pcall(CFG.OnUnload) end
+end
+
+local firstLoad = not CFG.Loaded
+CFG.Loaded = true
+CFG.Alive = false
+task.wait(0.1)
+CFG.Alive = true
+
+--[[ UI ]]
+if firstLoad then
+    local Window = Library:CreateWindow({
+        Title = "dino sauwr",
+        Footer = "(BOSS FIGHT) Pixelated Past",
+        Icon = 95816097006870,
+        NotifySide = "Right",
+        ShowCustomCursor = true,
+    })
+
+    local CombatTab = Window:AddTab("Combat", "sword")
+    local VisualTab = Window:AddTab("Visuals", "eye")
+    local WorldTab = Window:AddTab("World", "globe")
+    local MiscTab = Window:AddTab("Misc", "hammer")
+
+    local UISettings = Window:AddTab("UI Settings", "settings")
+
+    SaveManager:SetLibrary(Library)
+    ThemeManager:SetLibrary(Library)
+    SaveManager:IgnoreThemeSettings()
+    SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+    ThemeManager:SetFolder("dino_sauwr")
+    SaveManager:SetFolder("dino_sauwr/Pixelated Past")
+    SaveManager:BuildConfigSection(UISettings)
+    ThemeManager:ApplyToTab(UISettings)
+
+    SaveManager:LoadAutoloadConfig()
+end
+
+CFG.OnUnload = function()
+    CFG.Alive = false
+    for _, conn in ipairs(CFG.Connections or {}) do
+        pcall(function() conn:Disconnect() end)
+    end
+    CFG.Connections = {}
+end
+CFG.Connections = CFG.Connections or {}
+
+task.spawn(function()
+    while CFG.Alive do
+        task.wait()
+    end
+end)
