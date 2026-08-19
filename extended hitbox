@@ -1,45 +1,48 @@
--- Creator: Finder_Guy
--- Creatures of Sonaria | Huge Semi-Visible Hitbox (200 studs) + Camera Focus on Head
+-- extended_hitbox.lua - Creatures of Sonaria | Extended Hitbox (Obsidian UI)
 
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
-local player = game.Players.LocalPlayer
-local runService = game:GetService("RunService")
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
+getgenv().CoSHitbox = getgenv().CoSHitbox or {}
+local CFG = getgenv().CoSHitbox
+
+if CFG.Loaded then
+    CFG.Unloading = true
+    task.wait(0.05)
+    if CFG.OnUnload then pcall(CFG.OnUnload) end
+end
+
+local firstLoad = not CFG.Loaded
+CFG.Loaded = true
+CFG.Alive = false
+task.wait(0.1)
+CFG.Alive = true
+
 local extendHitboxEnabled = false
+local hitboxSize = 200
 
-local Window = Rayfield:CreateWindow({
-    Name = "Creatures of Sonaria | by Finder_Guy",
-    LoadingTitle = "Loading Script by Finder_Guy...",
-    ConfigurationSaving = {Enabled = false},
-    KeySystem = false
-})
-
-local MainTab = Window:CreateTab("Main")
-
-MainTab:CreateToggle({
-    Name = "Extend Hitbox",
-    CurrentValue = false,
-    Callback = function(value)
-        extendHitboxEnabled = value
-    end
-})
-
--- Extend hitbox function (200 studs cube, semi-transparent visible)
 local function extendHitbox()
-    local char = player.Character
+    local char = LocalPlayer.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
         local hrp = char.HumanoidRootPart
-        hrp.Size = Vector3.new(200, 200, 200)
+        hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
         hrp.Transparency = 0.7
         hrp.CanCollide = false
     end
 end
 
--- Reset hitbox to default
 local function resetHitbox()
-    local char = player.Character
+    local char = LocalPlayer.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
         local hrp = char.HumanoidRootPart
         hrp.Size = Vector3.new(2, 2, 1)
@@ -48,9 +51,8 @@ local function resetHitbox()
     end
 end
 
--- Update camera to focus on Head to avoid being inside huge hitbox
 local function updateCameraFocus()
-    local char = player.Character
+    local char = LocalPlayer.Character
     if char then
         local head = char:FindFirstChild("Head")
         if head then
@@ -60,18 +62,72 @@ local function updateCameraFocus()
     end
 end
 
--- When character spawns, focus camera on head
-player.CharacterAdded:Connect(function(char)
+task.spawn(function()
+    while CFG.Alive do
+        RunService.Heartbeat:Wait()
+        updateCameraFocus()
+        if extendHitboxEnabled then
+            extendHitbox()
+        else
+            resetHitbox()
+        end
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function(char)
     char:WaitForChild("Head")
     updateCameraFocus()
 end)
 
--- Continuously update camera focus and hitbox size each frame
-runService.Heartbeat:Connect(function()
-    updateCameraFocus()
-    if extendHitboxEnabled then
-        extendHitbox()
-    else
-        resetHitbox()
-    end
-end)
+CFG.OnUnload = function()
+    CFG.Alive = false
+    resetHitbox()
+    Camera.CameraSubject = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+    Camera.CameraType = Enum.CameraType.Custom
+end
+
+if firstLoad then
+    local Window = Library:CreateWindow({
+        Title = "Creatures of Sonaria",
+        Footer = "Extended Hitbox",
+        Icon = 95816097006870,
+        NotifySide = "Right",
+        ShowCustomCursor = true,
+    })
+
+    local MainTab = Window:AddTab("Main", "sword")
+
+    local HitboxBox = MainTab:AddLeftGroupbox("Hitbox", "crosshair")
+    HitboxBox:AddToggle("ExtendHitbox", {
+        Text = "Extend Hitbox",
+        Default = false,
+        Tooltip = "Expands HumanoidRootPart to configurable size, semi-transparent",
+        Callback = function(value)
+            extendHitboxEnabled = value
+        end,
+    })
+    HitboxBox:AddSlider("HitboxSize", {
+        Text = "Hitbox Size (studs)",
+        Default = 200,
+        Min = 5,
+        Max = 500,
+        Rounding = 0,
+        Compact = false,
+        Callback = function(value)
+            hitboxSize = value
+        end,
+    })
+
+    local UISettings = Window:AddTab("UI Settings", "settings")
+
+    SaveManager:SetLibrary(Library)
+    ThemeManager:SetLibrary(Library)
+    SaveManager:IgnoreThemeSettings()
+    SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+    ThemeManager:SetFolder("cos_hitbox")
+    SaveManager:SetFolder("cos_hitbox/Creatures of Sonaria")
+    SaveManager:BuildConfigSection(UISettings)
+    ThemeManager:ApplyToTab(UISettings)
+
+    SaveManager:LoadAutoloadConfig()
+end
