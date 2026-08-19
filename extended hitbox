@@ -1,4 +1,4 @@
--- extended_hitbox.lua - Creatures of Sonaria | Extended Hitbox (Obsidian UI)
+-- extended_hitbox.lua - Creatures of Sonaria | Forward Hitbox Expander from Head (Obsidian UI)
 
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
@@ -11,7 +11,6 @@ local Toggles = Library.Toggles
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
 
 getgenv().CoSHitbox = getgenv().CoSHitbox or {}
 local CFG = getgenv().CoSHitbox
@@ -31,65 +30,92 @@ CFG.Alive = true
 local extendHitboxEnabled = false
 local hitboxSize = 200
 
-local function extendHitbox()
+local hitboxExtender = nil
+
+local function createHitboxExtender()
     local char = LocalPlayer.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        local hrp = char.HumanoidRootPart
-        hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
-        hrp.Transparency = 0.7
-        hrp.CanCollide = false
+    if not char then return end
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+
+    if hitboxExtender then
+        hitboxExtender:Destroy()
+        hitboxExtender = nil
     end
+
+    -- Create forward hitbox extender part starting at head
+    hitboxExtender = Instance.new("Part")
+    hitboxExtender.Name = "HitboxExtender"
+    hitboxExtender.Anchored = false
+    hitboxExtender.CanCollide = true
+    hitboxExtender.CanTouch = true
+    hitboxExtender.CanQuery = true
+    hitboxExtender.Massless = true
+    hitboxExtender.Transparency = 0.7
+    hitboxExtender.Color = Color3.fromRGB(255, 0, 0)
+    hitboxExtender.Material = Enum.Material.ForceField
+    -- Thin on X/Y, long on Z (forward from head)
+    hitboxExtender.Size = Vector3.new(4, 4, hitboxSize)
+    hitboxExtender.Parent = char
+
+    -- Weld to head, pointing forward
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = head
+    weld.Part1 = hitboxExtender
+    weld.Parent = hitboxExtender
+
+    -- Position it forward from head: offset by half extender length + half head depth
+    local headDepth = head.Size.Z
+    local extenderDepth = hitboxSize
+    local offset = (headDepth / 2) + (extenderDepth / 2)
+    hitboxExtender.CFrame = head.CFrame * CFrame.new(0, 0, -offset)
 end
 
-local function resetHitbox()
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        local hrp = char.HumanoidRootPart
-        hrp.Size = Vector3.new(2, 2, 1)
-        hrp.Transparency = 0
-        hrp.CanCollide = true
-    end
-end
-
-local function updateCameraFocus()
-    local char = LocalPlayer.Character
-    if char then
-        local head = char:FindFirstChild("Head")
-        if head then
-            Camera.CameraSubject = head
-            Camera.CameraType = Enum.CameraType.Custom
-        end
+local function removeHitboxExtender()
+    if hitboxExtender then
+        hitboxExtender:Destroy()
+        hitboxExtender = nil
     end
 end
 
 task.spawn(function()
     while CFG.Alive do
         RunService.Heartbeat:Wait()
-        updateCameraFocus()
-        if extendHitboxEnabled then
-            extendHitbox()
+
+        local char = LocalPlayer.Character
+        local head = char and char:FindFirstChild("Head")
+
+        if extendHitboxEnabled and head then
+            if not hitboxExtender or not hitboxExtender.Parent then
+                createHitboxExtender()
+            else
+                -- Update size if changed
+                hitboxExtender.Size = Vector3.new(4, 4, hitboxSize)
+                -- Re-position forward from head
+                local headDepth = head.Size.Z
+                local extenderDepth = hitboxSize
+                local offset = (headDepth / 2) + (extenderDepth / 2)
+                hitboxExtender.CFrame = head.CFrame * CFrame.new(0, 0, -offset)
+            end
         else
-            resetHitbox()
+            removeHitboxExtender()
         end
     end
 end)
 
 LocalPlayer.CharacterAdded:Connect(function(char)
-    char:WaitForChild("Head")
-    updateCameraFocus()
+    hitboxExtender = nil
 end)
 
 CFG.OnUnload = function()
     CFG.Alive = false
-    resetHitbox()
-    Camera.CameraSubject = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
-    Camera.CameraType = Enum.CameraType.Custom
+    removeHitboxExtender()
 end
 
 if firstLoad then
     local Window = Library:CreateWindow({
         Title = "Creatures of Sonaria",
-        Footer = "Extended Hitbox",
+        Footer = "Forward Hitbox Expander from Head",
         Icon = 95816097006870,
         NotifySide = "Right",
         ShowCustomCursor = true,
@@ -99,15 +125,15 @@ if firstLoad then
 
     local HitboxBox = MainTab:AddLeftGroupbox("Hitbox", "crosshair")
     HitboxBox:AddToggle("ExtendHitbox", {
-        Text = "Extend Hitbox",
+        Text = "Extend Forward Hitbox (from Head)",
         Default = false,
-        Tooltip = "Expands HumanoidRootPart to configurable size, semi-transparent",
+        Tooltip = "Creates a forward-only hitbox extension starting at your creature's head",
         Callback = function(value)
             extendHitboxEnabled = value
         end,
     })
     HitboxBox:AddSlider("HitboxSize", {
-        Text = "Hitbox Size (studs)",
+        Text = "Forward Length (studs)",
         Default = 200,
         Min = 5,
         Max = 500,
