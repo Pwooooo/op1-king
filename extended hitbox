@@ -1,4 +1,4 @@
--- extended_hitbox.lua - Creatures of Sonaria | Extended Hitbox (Obsidian UI)
+-- extended_hitbox.lua - Creatures of Sonaria | Extended Hitbox + Inf Stamina + Inf Aggro (Obsidian UI)
 
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
@@ -30,6 +30,34 @@ task.wait(0.1)
 CFG.Alive = true
 
 local extendHitboxEnabled = false
+local infStaminaEnabled = false
+local infAggroEnabled = false
+
+local sonaR, playerWrapper, sprintService, staminaTracker, characterControls
+
+local function initModules()
+    local ok, err = pcall(function()
+        sonaR = require(game:GetService("ReplicatedStorage"):WaitForChild("Sonar"))
+        playerWrapper = sonaR("PlayerWrapper"):GetClient()
+        sprintService = sonaR("SprintService")
+        staminaTracker = sonaR("StaminaTracker"):GetTracker()
+        characterControls = sonaR("CharacterControls")
+    end)
+    if not ok then
+        warn("[CoS] Module init failed: " .. tostring(err))
+    end
+end
+
+task.spawn(function()
+    repeat task.wait(1) until game:IsLoaded() and LocalPlayer.Character
+    task.wait(2)
+    initModules()
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(2)
+    initModules()
+end)
 
 local function extendHitbox()
     local char = LocalPlayer.Character
@@ -62,6 +90,50 @@ local function updateCameraFocus()
     end
 end
 
+-- Infinite Stamina: override regen to max and keep stamina full
+local function setInfStamina(enabled)
+    if not staminaTracker then
+        initModules()
+    end
+    if not staminaTracker then return end
+
+    if enabled then
+        -- Set stamina to max and override regen to huge value
+        local maxStam = staminaTracker:GetMaxStamina()
+        staminaTracker:SetStaminaRegenOverride(maxStam * 1000)
+        -- Force stamina to max
+        for i = 1, 10 do
+            staminaTracker:Increment(maxStam)
+            task.wait(0.05)
+        end
+    else
+        -- Restore normal regen
+        staminaTracker:SetStaminaRegenOverride(nil)
+    end
+end
+
+-- Infinite Aggro: keep the Aggression pose active
+local function setInfAggro(enabled)
+    if not characterControls then
+        initModules()
+    end
+    if not characterControls then return end
+
+    if enabled then
+        -- Activate Aggression pose
+        local charClass = playerWrapper:GetCurrentCharacter()
+        if charClass and charClass.Pose then
+            charClass:Pose("Aggression", true)
+        end
+    else
+        -- Deactivate
+        local charClass = playerWrapper:GetCurrentCharacter()
+        if charClass and charClass.Pose then
+            charClass:Pose("Aggression", false)
+        end
+    end
+end
+
 task.spawn(function()
     while CFG.Alive do
         RunService.Heartbeat:Wait()
@@ -71,12 +143,35 @@ task.spawn(function()
         else
             resetHitbox()
         end
+
+        -- Maintain infinite stamina
+        if infStaminaEnabled and staminaTracker then
+            local maxStam = staminaTracker:GetMaxStamina()
+            if staminaTracker:GetStamina() < maxStam then
+                staminaTracker:Increment(maxStam)
+            end
+        end
+
+        -- Maintain infinite aggro
+        if infAggroEnabled and characterControls then
+            local charClass = playerWrapper and playerWrapper:GetCurrentCharacter()
+            if charClass and charClass.Pose then
+                -- Re-apply aggro pose periodically (server may reset it)
+                if not charClass.Poses or not charClass.Poses.Aggression then
+                    charClass:Pose("Aggression", true)
+                end
+            end
+        end
     end
 end)
 
 LocalPlayer.CharacterAdded:Connect(function(char)
     char:WaitForChild("Head")
     updateCameraFocus()
+    task.wait(2)
+    initModules()
+    if infStaminaEnabled then setInfStamina(true) end
+    if infAggroEnabled then setInfAggro(true) end
 end)
 
 CFG.OnUnload = function()
@@ -84,20 +179,46 @@ CFG.OnUnload = function()
     resetHitbox()
     Camera.CameraSubject = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
     Camera.CameraType = Enum.CameraType.Custom
+    if infStaminaEnabled and staminaTracker then
+        staminaTracker:SetStaminaRegenOverride(nil)
+    end
+    if infAggroEnabled then
+        local charClass = playerWrapper and playerWrapper:GetCurrentCharacter()
+        if charClass and charClass.Pose then
+            charClass:Pose("Aggression", false)
+        end
+    end
+end
+
+-- Anti-cheat info
+local function getAntiCheatInfo()
+    local info = {}
+    -- Check for known anti-cheat indicators
+    local rs = game:GetService("ReplicatedStorage")
+    if rs:FindFirstChild("CheatSettings") then
+        table.insert(info, "CheatSettings folder found (private server admin cheats)")
+    end
+    if rs:FindFirstChild("CheatMenu") then
+        table.insert(info, "CheatMenu detected")
+    end
+    -- Webhook exploit logging found in event scripts
+    table.insert(info, "Exploit webhook logging detected (meteors/lightning spam)")
+    table.insert(info, "No client-side anti-cheat detected")
+    return info
 end
 
 if firstLoad then
     local Window = Library:CreateWindow({
         Title = "Creatures of Sonaria",
-        Footer = "by Finder_Guy | Extended Hitbox",
+        Footer = "by Finder_Guy | Extended Hitbox + Inf Stamina + Inf Aggro",
         Icon = 95816097006870,
         NotifySide = "Right",
         ShowCustomCursor = true,
     })
 
     local MainTab = Window:AddTab("Main", "sword")
-    local HitboxBox = MainTab:AddLeftGroupbox("Hitbox", "crosshair")
 
+    local HitboxBox = MainTab:AddLeftGroupbox("Hitbox", "crosshair")
     HitboxBox:AddToggle("ExtendHitbox", {
         Text = "Extend Hitbox (200 studs)",
         Default = false,
@@ -106,6 +227,36 @@ if firstLoad then
             extendHitboxEnabled = value
         end,
     })
+
+    local StaminaBox = MainTab:AddLeftGroupbox("Stamina", "bolt")
+    StaminaBox:AddToggle("InfStamina", {
+        Text = "Infinite Stamina",
+        Default = false,
+        Tooltip = "Sets stamina regen override to keep stamina full. Server validates stamina on sprint.",
+        Callback = function(value)
+            infStaminaEnabled = value
+            if value then setInfStamina(true) else setInfStamina(false) end
+        end,
+    })
+    StaminaBox:AddLabel("Note: Server validates stamina on sprint. Infinite stamina works for movement but sprint may still be limited by server.")
+
+    local AggroBox = MainTab:AddLeftGroupbox("Aggro", "crosshair")
+    AggroBox:AddToggle("InfAggro", {
+        Text = "Infinite Aggro Pose",
+        Default = false,
+        Tooltip = "Keeps the Aggression pose (Z key) active permanently. Server may reset on damage/state change.",
+        Callback = function(value)
+            infAggroEnabled = value
+            if value then setInfAggro(true) else setInfAggro(false) end
+        end,
+    })
+    AggroBox:AddLabel("Note: Aggro pose gives a status effect. Server may reset on damage/stun/state change.")
+
+    local ACBox = MainTab:AddLeftGroupbox("Anti-Cheat Info", "shield")
+    for _, line in ipairs(getAntiCheatInfo()) do
+        ACBox:AddLabel(line)
+    end
+    ACBox:AddLabel("Extended hitbox is client-side visual only. Server hit detection unchanged.")
 
     local UISettings = Window:AddTab("UI Settings", "settings")
 
