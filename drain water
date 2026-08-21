@@ -39,8 +39,10 @@ local EquipBestRemote = PetRemote:WaitForChild("EquipBest")
 local LevelData = LocalPlayer:WaitForChild("Level")
 local WaterValue = LevelData:WaitForChild("water")
 local ClickAmountValue = LevelData:WaitForChild("clickAmount")
+local LevelValue = LevelData:WaitForChild("level")
 local RebirthData = LocalPlayer:WaitForChild("Rebirth")
 local RebirthValue = RebirthData:WaitForChild("rebirth")
+local RebirthNeedValue = RebirthData:WaitForChild("rebirthNeed")
 local CashData = LocalPlayer:WaitForChild("Cash")
 local CashValue = CashData:WaitForChild("cash")
 local BackpackData = LocalPlayer:WaitForChild("BackpackData")
@@ -103,44 +105,47 @@ local function getCharacter()
     return nil, nil, nil
 end
 
-local function getStageState(stageId)
+local function getAllStageStates()
     local success, states = pcall(function()
-        return GetStageState:InvokeServer(stageId)
+        return GetStageState:InvokeServer(1)
     end)
-    if success and states then
-        for _, s in ipairs(states) do
-            if s.stageId == stageId then
-                return s
-            end
-        end
-        if states[1] then
-            return states[1]
+    if success and states and type(states) == "table" then
+        return states
+    end
+    return {}
+end
+
+local function getStageStateById(stageId)
+    local states = getAllStageStates()
+    for _, s in ipairs(states) do
+        if s.stageId == stageId then
+            return s
         end
     end
     return nil
 end
 
+local function getCurrentStage()
+    local states = getAllStageStates()
+    for _, s in ipairs(states) do
+        if not s.completed then
+            return s.stageId
+        end
+    end
+    return StageHelper.GetStageIds()[1] or 1
+end
+
 local function getNextUncompletedStage()
     local stages = StageHelper.GetStageIds()
-    local states = getStageState(stages[1])
-    if states then
-        local stateList = {}
-        if type(states) == "table" then
-            if states.stageId then
-                stateList = {states}
-            else
-                for _, s in ipairs(states) do
-                    if type(s) == "table" and s.stageId then
-                        stateList[s.stageId] = s
-                    end
-                end
-            end
-        end
-        for _, id in ipairs(stages) do
-            local s = stateList[id]
-            if s and not s.completed then
-                return id
-            end
+    local states = getAllStageStates()
+    local stateMap = {}
+    for _, s in ipairs(states) do
+        stateMap[s.stageId] = s
+    end
+    for _, id in ipairs(stages) do
+        local s = stateMap[id]
+        if s and not s.completed then
+            return id
         end
     end
     return stages[1]
@@ -168,13 +173,12 @@ local function tpToStage(stageId)
 end
 
 local function getStageProgress(stageId)
-    local state = getStageState(stageId)
+    local state = getStageStateById(stageId)
     if state then
         local required = state.required or 1
         local remaining = state.remaining or 0
-        local fraction = state.fraction or (remaining / required)
         local drained = required - remaining
-        return drained, required, fraction, state.completed or false
+        return drained, required, state.fraction or 0, state.completed or false
     end
     return 0, 1, 1, false
 end
@@ -316,17 +320,7 @@ RebirthSection:AddToggle({
     end,
 })
 
-RebirthSection:AddSlider({
-    Name = "Rebirth At (water)",
-    Min = 1000,
-    Max = 100000000,
-    Default = 1000000,
-    Round = 0,
-    Type = "",
-    Callback = function(value)
-        CFG.RebirthThreshold = value
-    end,
-})
+RebirthSection:AddLabel("Auto-rebirths when level >= rebirthNeed")
 
 StageSection:AddToggle({
     Name = "Auto Clear Stage",
@@ -432,6 +426,7 @@ PetMiscSection:AddButton({
 local WaterLabel = StatsSection:AddLabel("Water: 0")
 local CashLabel = StatsSection:AddLabel("Cash: $0")
 local RebirthLabel = StatsSection:AddLabel("Rebirths: 0")
+local LevelLabel = StatsSection:AddLabel("Level: 0 / Need: 0")
 local BackpackLabel = StatsSection:AddLabel("Backpack: 0/0")
 local ClickLabel = StatsSection:AddLabel("Click Power: 0")
 local CurrentStageLabel = StageInfoSection:AddLabel("Current Stage: 1")
@@ -443,10 +438,11 @@ local function updateInfo()
     WaterLabel:SetValue("Water: " .. formatNum(WaterValue.Value))
     CashLabel:SetValue("Cash: $" .. formatNum(CashValue.Value))
     RebirthLabel:SetValue("Rebirths: " .. formatNum(RebirthValue.Value))
+    LevelLabel:SetValue("Level: " .. formatNum(LevelValue.Value) .. " / Need: " .. formatNum(RebirthNeedValue.Value))
     BackpackLabel:SetValue("Backpack: " .. formatNum(BackpackAmount.Value) .. "/" .. formatNum(BackpackCapacity.Value))
     ClickLabel:SetValue("Click Power: " .. formatNum(ClickAmountValue.Value))
 
-    local activeStage = LocalPlayer:GetAttribute("ActiveWaterStageId") or 1
+    local activeStage = getCurrentStage()
     CurrentStageLabel:SetValue("Current Stage: " .. activeStage)
 
     local drained, required, fraction, completed = getStageProgress(activeStage)
@@ -489,7 +485,9 @@ end)
 task.spawn(function()
     while CFG.Alive do
         if CFG.AutoRebirth then
-            if tonumber(WaterValue.Value) >= CFG.RebirthThreshold then
+            local level = tonumber(LevelValue.Value) or 0
+            local need = tonumber(RebirthNeedValue.Value) or 999999
+            if level >= need then
                 pcall(doRebirth)
                 task.wait(1)
             end
@@ -502,7 +500,7 @@ task.spawn(function()
     while CFG.Alive do
         if CFG.AutoStage then
             pcall(function()
-                local activeStage = LocalPlayer:GetAttribute("ActiveWaterStageId") or 1
+                local activeStage = getCurrentStage()
                 local _, _, _, completed = getStageProgress(activeStage)
                 if completed then
                     local nextStage = getNextUncompletedStage()
@@ -529,7 +527,7 @@ task.spawn(function()
     while CFG.Alive do
         if CFG.AutoBestFish then
             pcall(function()
-                local activeStage = LocalPlayer:GetAttribute("ActiveWaterStageId") or 1
+                local activeStage = getCurrentStage()
                 collectBestFish(activeStage)
             end)
         end
