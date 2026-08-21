@@ -184,38 +184,49 @@ local function getStageProgress(stageId)
 end
 
 local function getBestFishInStage(stageId)
+    local surfPos = getWaterSurfacePos(stageId)
+    if not surfPos then return nil end
+    local surfY = surfPos.Y
+
     local bestFish = nil
-    local bestRarity = 0
+    local bestPrice = 0
+
     for _, fish in ipairs(WorldFish:GetChildren()) do
-        local name = fish.Name
-        local fishIdStr, slotStr = name:match("Fish_(%d+)_(%d+)")
+        local fishIdStr, slotStr = fish.Name:match("Fish_(%d+)_(%d+)")
         if fishIdStr then
             local fishId = tonumber(fishIdStr)
             local slot = tonumber(slotStr)
+
             local fishPos = nil
             if fish:IsA("Model") and fish.PrimaryPart then
                 fishPos = fish.PrimaryPart.Position
-            end
-            if fishPos then
-                local surfPos = getWaterSurfacePos(stageId)
-                if surfPos and (fishPos - surfPos).Magnitude < 200 then
-                    local cfg = FishHelper and FishHelper.GetFishConfig(fishId) or nil
-                    local rarity = 0
-                    local fishName = "Fish"
-                    if cfg then
-                        rarity = RARITY_ORDER[cfg.rarity or "Common"] or 0
-                        fishName = cfg.name or "Fish"
+            else
+                for _, desc in ipairs(fish:GetDescendants()) do
+                    if desc:IsA("BasePart") then
+                        fishPos = desc.Position
+                        break
                     end
-                    if rarity > bestRarity or (rarity == bestRarity and not bestFish) then
-                        bestRarity = rarity
-                        bestFish = {
-                            model = fish,
-                            fishId = fishId,
-                            slot = slot,
-                            name = fishName,
-                            rarity = cfg and cfg.rarity or "Common",
-                            pos = fishPos,
-                        }
+                end
+            end
+
+            if fishPos then
+                local yDist = math.abs(fishPos.Y - surfY)
+                if yDist < 25 then
+                    local cfg = FishHelper.GetFishConfig(fishId)
+                    if cfg then
+                        local price = tonumber(Handler.Num.UnAbb(cfg.basePrice)) or 0
+                        if price > bestPrice then
+                            bestPrice = price
+                            bestFish = {
+                                model = fish,
+                                fishId = fishId,
+                                slot = slot,
+                                name = cfg.name or "Fish",
+                                rarity = cfg.rarity or "Common",
+                                price = price,
+                                pos = fishPos,
+                            }
+                        end
                     end
                 end
             end
@@ -450,7 +461,7 @@ local function updateInfo()
 
     local bestFish = getBestFishInStage(activeStage)
     if bestFish then
-        BestFishLabel:SetValue("Best Fish: " .. bestFish.name .. " (" .. bestFish.rarity .. ")")
+        BestFishLabel:SetValue("Best Fish: " .. bestFish.name .. " ($" .. formatNum(bestFish.price) .. ")")
     else
         BestFishLabel:SetValue("Best Fish: None in stage")
     end
