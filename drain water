@@ -85,7 +85,7 @@ local Window = NeverZen.new({
     Name = "Drain Water",
     SubTitle = "Automation",
     Keybind = Enum.KeyCode.LeftControl,
-    Scale = UDim2.new(0, 500, 0, 350),
+    Scale = UDim2.new(0, 650, 0, 400),
     Shadow = true,
     Acrylic = true,
 })
