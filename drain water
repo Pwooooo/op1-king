@@ -3,7 +3,7 @@ repeat task.wait() until game:IsLoaded()
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 
 local NeverZenSource = game:HttpGet("https://raw.githubusercontent.com/Pwooooo/op1-king/main/NeverZen_lib.lua"):gsub("\r\n", "\n")
@@ -11,6 +11,7 @@ local NeverZen = loadstring(NeverZenSource)()
 local Handler = require(ReplicatedStorage:WaitForChild("Utils"):WaitForChild("Handler"))
 local StageHelper = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("StageHelper"))
 local EggHelper = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("EggHelper"))
+local FishHelper = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("FishHelper"))
 
 local Remotes = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Event")
 local RemotesFunc = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Function")
@@ -20,12 +21,14 @@ local GroupRemote = Remotes:WaitForChild("Group")
 local PetRemote = Remotes:WaitForChild("Pet")
 local EggEvent = Remotes:WaitForChild("Egg")
 local StageRemote = Remotes:WaitForChild("Stage")
+local FishRemote = Remotes:WaitForChild("Fish")
 
 local ClickRemote = LevelRemote:WaitForChild("[C-S]Click")
 local ReturnHomeRemote = LevelRemote:WaitForChild("[C-S]ReturnHome")
 local GoShowRemote = LevelRemote:WaitForChild("[C-S]GoShow")
 local TryRebirthRemote = RebirthRemote:WaitForChild("[C - S]TryRebirth")
 local StandingWaterRemote = StageRemote:WaitForChild("[C-S]StandingWater")
+local DisplayFishRemote = FishRemote:WaitForChild("[C-S]DisplayFish")
 local StageFunc = RemotesFunc:WaitForChild("Stage")
 local GetStageState = StageFunc:WaitForChild("[C-S]GetStageState")
 local EggFunc = RemotesFunc:WaitForChild("Egg")
@@ -44,6 +47,16 @@ local BackpackData = LocalPlayer:WaitForChild("BackpackData")
 local BackpackAmount = BackpackData:WaitForChild("amount")
 local BackpackCapacity = BackpackData:WaitForChild("capacity")
 
+local Workspace = game:GetService("Workspace")
+local MainScene = Workspace:WaitForChild("主场景")
+local VerifyScene = MainScene:WaitForChild("验证场景")
+local WorldFish = VerifyScene:WaitForChild("WorldFish")
+
+local RARITY_ORDER = {
+    Common = 1, Rare = 2, Epic = 3, Legendary = 4,
+    Mythic = 5, Exotic = 6, Secret = 7, Exclusive = 8, OG = 9,
+}
+
 local CFG = {
     AutoClick = false,
     ClickDelay = 0.1,
@@ -51,12 +64,12 @@ local CFG = {
     RebirthThreshold = 1000000,
     AutoReturnHome = false,
     ReturnHomeInterval = 30,
-    AutoBestZone = false,
+    AutoStage = false,
+    AutoBestFish = false,
     AutoBestPet = false,
     BestPetInterval = 5,
     ClickId = 0,
     Alive = true,
-    Connections = {},
 }
 
 getgenv().Sky = CFG
@@ -82,15 +95,148 @@ local function doGoShow()
     GoShowRemote:FireServer()
 end
 
-local function getBestStage()
-    local water = tonumber(WaterValue.Value) or 0
-    local best = 1
-    for _, id in ipairs(StageHelper.GetStageIds()) do
-        if water >= StageHelper.GetWaterRequired(id) then
-            best = id
+local function getCharacter()
+    local char = LocalPlayer.Character
+    if char then
+        return char, char:FindFirstChild("HumanoidRootPart"), char:FindFirstChildOfClass("Humanoid")
+    end
+    return nil, nil, nil
+end
+
+local function getStageState(stageId)
+    local success, states = pcall(function()
+        return GetStageState:InvokeServer(stageId)
+    end)
+    if success and states then
+        for _, s in ipairs(states) do
+            if s.stageId == stageId then
+                return s
+            end
+        end
+        if states[1] then
+            return states[1]
         end
     end
-    return best
+    return nil
+end
+
+local function getNextUncompletedStage()
+    local stages = StageHelper.GetStageIds()
+    local states = getStageState(stages[1])
+    if states then
+        local stateList = {}
+        if type(states) == "table" then
+            if states.stageId then
+                stateList = {states}
+            else
+                for _, s in ipairs(states) do
+                    if type(s) == "table" and s.stageId then
+                        stateList[s.stageId] = s
+                    end
+                end
+            end
+        end
+        for _, id in ipairs(stages) do
+            local s = stateList[id]
+            if s and not s.completed then
+                return id
+            end
+        end
+    end
+    return stages[1]
+end
+
+local function getWaterSurfacePos(stageId)
+    local folder = VerifyScene:FindFirstChild("关卡" .. stageId)
+    if folder then
+        local surface = folder:FindFirstChild("水面")
+        if surface then
+            return surface.Position, surface.Size
+        end
+    end
+    return nil, nil
+end
+
+local function tpToStage(stageId)
+    local _, hrp, _ = getCharacter()
+    if not hrp then return end
+    local pos, size = getWaterSurfacePos(stageId)
+    if pos then
+        local tpPos = pos + Vector3.new(0, 5, 0)
+        hrp.CFrame = CFrame.new(tpPos)
+    end
+end
+
+local function getStageProgress(stageId)
+    local state = getStageState(stageId)
+    if state then
+        local required = state.required or 1
+        local remaining = state.remaining or 0
+        local fraction = state.fraction or (remaining / required)
+        local drained = required - remaining
+        return drained, required, fraction, state.completed or false
+    end
+    return 0, 1, 1, false
+end
+
+local function getBestFishInStage(stageId)
+    local bestFish = nil
+    local bestRarity = 0
+    for _, fish in ipairs(WorldFish:GetChildren()) do
+        local name = fish.Name
+        local fishIdStr, slotStr = name:match("Fish_(%d+)_(%d+)")
+        if fishIdStr then
+            local fishId = tonumber(fishIdStr)
+            local slot = tonumber(slotStr)
+            local fishPos = nil
+            if fish:IsA("Model") and fish.PrimaryPart then
+                fishPos = fish.PrimaryPart.Position
+            end
+            if fishPos then
+                local surfPos = getWaterSurfacePos(stageId)
+                if surfPos and (fishPos - surfPos).Magnitude < 200 then
+                    local cfg = FishHelper and FishHelper.GetFishConfig(fishId) or nil
+                    local rarity = 0
+                    local fishName = "Fish"
+                    if cfg then
+                        rarity = RARITY_ORDER[cfg.rarity or "Common"] or 0
+                        fishName = cfg.name or "Fish"
+                    end
+                    if rarity > bestRarity or (rarity == bestRarity and not bestFish) then
+                        bestRarity = rarity
+                        bestFish = {
+                            model = fish,
+                            fishId = fishId,
+                            slot = slot,
+                            name = fishName,
+                            rarity = cfg and cfg.rarity or "Common",
+                            pos = fishPos,
+                        }
+                    end
+                end
+            end
+        end
+    end
+    return bestFish
+end
+
+local function tpToFish(fishData)
+    local _, hrp, _ = getCharacter()
+    if not hrp or not fishData or not fishData.pos then return end
+    hrp.CFrame = CFrame.new(fishData.pos + Vector3.new(0, 3, 0))
+end
+
+local function collectBestFish(stageId)
+    local fish = getBestFishInStage(stageId)
+    if fish then
+        tpToFish(fish)
+        task.wait(0.3)
+        local success, err = pcall(function()
+            DisplayFishRemote:FireServer(fish.model)
+        end)
+        return fish
+    end
+    return nil
 end
 
 local function getBestAffordableEgg()
@@ -130,9 +276,9 @@ local FarmTab = Window:AddTab({ Name = "Farm", Icon = "zap" })
 local FarmSection = FarmTab:AddSection({ Name = "Farming", Position = "left" })
 local RebirthSection = FarmTab:AddSection({ Name = "Rebirth", Position = "right" })
 
-local TravelTab = Window:AddTab({ Name = "Travel", Icon = "globe" })
-local ZoneSection = TravelTab:AddSection({ Name = "Zones", Position = "left" })
-local TravelSection = TravelTab:AddSection({ Name = "Travel", Position = "right" })
+local StageTab = Window:AddTab({ Name = "Stages", Icon = "globe" })
+local StageSection = StageTab:AddSection({ Name = "Auto Stage", Position = "left" })
+local FishSection = StageTab:AddSection({ Name = "Auto Fish", Position = "right" })
 
 local PetTab = Window:AddTab({ Name = "Pets", Icon = "shield" })
 local EggSection = PetTab:AddSection({ Name = "Egg Auto-Open", Position = "left" })
@@ -140,7 +286,7 @@ local PetMiscSection = PetTab:AddSection({ Name = "Pet Misc", Position = "right"
 
 local InfoTab = Window:AddTab({ Name = "Info", Icon = "eye" })
 local StatsSection = InfoTab:AddSection({ Name = "Stats", Position = "left" })
-local ZoneInfoSection = InfoTab:AddSection({ Name = "Zone Info", Position = "right" })
+local StageInfoSection = InfoTab:AddSection({ Name = "Stage Info", Position = "right" })
 
 FarmSection:AddToggle({
     Name = "Auto Click",
@@ -182,57 +328,43 @@ RebirthSection:AddSlider({
     end,
 })
 
-ZoneSection:AddToggle({
-    Name = "Auto Best Zone",
+StageSection:AddToggle({
+    Name = "Auto Clear Stage",
     Default = false,
     Callback = function(value)
-        CFG.AutoBestZone = value
+        CFG.AutoStage = value
     end,
 })
 
-ZoneSection:AddSlider({
-    Name = "Zone Check Interval (s)",
+StageSection:AddSlider({
+    Name = "Stage Check (s)",
     Min = 1,
-    Max = 30,
-    Default = 5,
+    Max = 10,
+    Default = 3,
     Round = 0,
     Type = "s",
     Callback = function(value)
-        CFG.ZoneInterval = value
+        CFG.StageInterval = value
     end,
 })
 
-TravelSection:AddButton({
-    Name = "Return Home",
-    Callback = function()
-        doReturnHome()
-    end,
-})
-
-TravelSection:AddButton({
-    Name = "Go To Show",
-    Callback = function()
-        doGoShow()
-    end,
-})
-
-TravelSection:AddToggle({
-    Name = "Auto Return Home",
+FishSection:AddToggle({
+    Name = "Auto Collect Best Fish",
     Default = false,
     Callback = function(value)
-        CFG.AutoReturnHome = value
+        CFG.AutoBestFish = value
     end,
 })
 
-TravelSection:AddSlider({
-    Name = "Return Interval (s)",
-    Min = 5,
-    Max = 120,
-    Default = 30,
+FishSection:AddSlider({
+    Name = "Fish Check (s)",
+    Min = 1,
+    Max = 10,
+    Default = 3,
     Round = 0,
     Type = "s",
     Callback = function(value)
-        CFG.ReturnHomeInterval = value
+        CFG.FishInterval = value
     end,
 })
 
@@ -283,43 +415,70 @@ PetMiscSection:AddButton({
     end,
 })
 
+PetMiscSection:AddButton({
+    Name = "Return Home",
+    Callback = function()
+        doReturnHome()
+    end,
+})
+
+PetMiscSection:AddButton({
+    Name = "Go To Show",
+    Callback = function()
+        doGoShow()
+    end,
+})
+
 local WaterLabel = StatsSection:AddLabel("Water: 0")
 local CashLabel = StatsSection:AddLabel("Cash: $0")
 local RebirthLabel = StatsSection:AddLabel("Rebirths: 0")
 local BackpackLabel = StatsSection:AddLabel("Backpack: 0/0")
 local ClickLabel = StatsSection:AddLabel("Click Power: 0")
-local BestStageLabel = ZoneInfoSection:AddLabel("Best Stage: 1")
-local BestEggLabel = ZoneInfoSection:AddLabel("Best Egg: Basic Egg")
-local StageStatus = ZoneInfoSection:AddLabel("Current Stage: 1")
+local CurrentStageLabel = StageInfoSection:AddLabel("Current Stage: 1")
+local StageProgressLabel = StageInfoSection:AddLabel("Progress: 0/0")
+local BestFishLabel = StageInfoSection:AddLabel("Best Fish: None")
+local BestEggLabel = StageInfoSection:AddLabel("Best Egg: None")
+
+local function updateInfo()
+    WaterLabel:SetValue("Water: " .. formatNum(WaterValue.Value))
+    CashLabel:SetValue("Cash: $" .. formatNum(CashValue.Value))
+    RebirthLabel:SetValue("Rebirths: " .. formatNum(RebirthValue.Value))
+    BackpackLabel:SetValue("Backpack: " .. formatNum(BackpackAmount.Value) .. "/" .. formatNum(BackpackCapacity.Value))
+    ClickLabel:SetValue("Click Power: " .. formatNum(ClickAmountValue.Value))
+
+    local activeStage = LocalPlayer:GetAttribute("ActiveWaterStageId") or 1
+    CurrentStageLabel:SetValue("Current Stage: " .. activeStage)
+
+    local drained, required, fraction, completed = getStageProgress(activeStage)
+    StageProgressLabel:SetValue("Progress: " .. formatNum(drained) .. "/" .. formatNum(required) .. (completed and " (DONE)" or ""))
+
+    local bestFish = getBestFishInStage(activeStage)
+    if bestFish then
+        BestFishLabel:SetValue("Best Fish: " .. bestFish.name .. " (" .. bestFish.rarity .. ")")
+    else
+        BestFishLabel:SetValue("Best Fish: None in stage")
+    end
+
+    local eggId = getBestAffordableEgg()
+    if eggId then
+        local name = EggHelper.GetEggName(eggId)
+        BestEggLabel:SetValue("Best Egg: " .. name)
+    else
+        BestEggLabel:SetValue("Best Egg: None affordable")
+    end
+end
 
 task.spawn(function()
     while CFG.Alive do
         task.wait(0.5)
-        WaterLabel:SetValue("Water: " .. formatNum(WaterValue.Value))
-        CashLabel:SetValue("Cash: $" .. formatNum(CashValue.Value))
-        RebirthLabel:SetValue("Rebirths: " .. formatNum(RebirthValue.Value))
-        BackpackLabel:SetValue("Backpack: " .. formatNum(BackpackAmount.Value) .. "/" .. formatNum(BackpackCapacity.Value))
-        ClickLabel:SetValue("Click Power: " .. formatNum(ClickAmountValue.Value))
-
-        local bestStage = getBestStage()
-        BestStageLabel:SetValue("Best Stage: " .. bestStage)
-
-        local eggId = getBestAffordableEgg()
-        if eggId then
-            local name = EggHelper.GetEggName(eggId)
-            BestEggLabel:SetValue("Best Egg: " .. name .. " (id:" .. eggId .. ")")
-        else
-            BestEggLabel:SetValue("Best Egg: None affordable")
-        end
-
-        StageStatus:SetValue("Current Stage: " .. (LocalPlayer:GetAttribute("ActiveWaterStageId") or "?"))
+        pcall(updateInfo)
     end
 end)
 
 task.spawn(function()
     while CFG.Alive do
         if CFG.AutoClick then
-            doClick()
+            pcall(doClick)
             task.wait(CFG.ClickDelay)
         else
             task.wait(0.1)
@@ -331,7 +490,7 @@ task.spawn(function()
     while CFG.Alive do
         if CFG.AutoRebirth then
             if tonumber(WaterValue.Value) >= CFG.RebirthThreshold then
-                doRebirth()
+                pcall(doRebirth)
                 task.wait(1)
             end
         end
@@ -341,33 +500,40 @@ end)
 
 task.spawn(function()
     while CFG.Alive do
-        if CFG.AutoReturnHome then
-            task.wait(CFG.ReturnHomeInterval)
-            if CFG.AutoReturnHome then
-                doReturnHome()
-            end
-        else
-            task.wait(0.5)
+        if CFG.AutoStage then
+            pcall(function()
+                local activeStage = LocalPlayer:GetAttribute("ActiveWaterStageId") or 1
+                local _, _, _, completed = getStageProgress(activeStage)
+                if completed then
+                    local nextStage = getNextUncompletedStage()
+                    if nextStage and nextStage ~= activeStage then
+                        tpToStage(nextStage)
+                    end
+                else
+                    local _, hrp, _ = getCharacter()
+                    local surfPos = getWaterSurfacePos(activeStage)
+                    if hrp and surfPos then
+                        local dist = (hrp.Position - surfPos).Magnitude
+                        if dist > 20 then
+                            tpToStage(activeStage)
+                        end
+                    end
+                end
+            end)
         end
+        task.wait(CFG.StageInterval or 3)
     end
 end)
 
 task.spawn(function()
     while CFG.Alive do
-        if CFG.AutoBestZone then
-            local bestStage = getBestStage()
-            local activeStage = LocalPlayer:GetAttribute("ActiveWaterStageId") or 0
-            if bestStage ~= activeStage then
-                local success, state = pcall(function()
-                    return GetStageState:InvokeServer(bestStage)
-                end)
-                if success and state and not state.completed then
-                    doGoShow()
-                    task.wait(2)
-                end
-            end
+        if CFG.AutoBestFish then
+            pcall(function()
+                local activeStage = LocalPlayer:GetAttribute("ActiveWaterStageId") or 1
+                collectBestFish(activeStage)
+            end)
         end
-        task.wait(CFG.ZoneInterval or 5)
+        task.wait(CFG.FishInterval or 3)
     end
 end)
 
@@ -376,12 +542,9 @@ task.spawn(function()
         if CFG.AutoBestPet then
             local eggId = getBestAffordableEgg()
             if eggId then
-                local canOpen = pcall(function()
-                    return CanOpenEggRemote:InvokeServer(eggId)
-                end)
-                if canOpen then
+                pcall(function()
                     doOpenEgg(eggId)
-                end
+                end)
             end
         end
         task.wait(CFG.BestPetInterval)
