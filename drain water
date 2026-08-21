@@ -31,95 +31,170 @@ local function showKeyGUI()
     sg.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
     local bg = Instance.new("Frame")
-    bg.Size = UDim2.new(0, 380, 0, 220)
-    bg.Position = UDim2.new(0.5, -190, 0.5, -110)
-    bg.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    bg.Size = UDim2.new(0, 420, 0, 290)
+    bg.Position = UDim2.new(0.5, -210, 0.5, -145)
+    bg.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
     bg.BorderSizePixel = 0
     bg.Parent = sg
-    Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 10)
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 8)
 
     local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(80, 130, 255)
-    stroke.Thickness = 2
+    stroke.Color = Color3.fromRGB(40, 40, 40)
+    stroke.Thickness = 1
     stroke.Parent = bg
 
+    local accent = Instance.new("Frame")
+    accent.Size = UDim2.new(1, 0, 0, 3)
+    accent.Position = UDim2.new(0, 0, 0, 0)
+    accent.BackgroundColor3 = Color3.fromRGB(200, 215, 230)
+    accent.BorderSizePixel = 0
+    accent.Parent = bg
+    Instance.new("UICorner", accent).CornerRadius = UDim.new(0, 8)
+
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -20, 0, 40)
-    title.Position = UDim2.new(0, 10, 0, 10)
+    title.Size = UDim2.new(1, -30, 0, 32)
+    title.Position = UDim2.new(0, 15, 0, 14)
     title.BackgroundTransparency = 1
-    title.Text = "Key System"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 22
+    title.Text = "Sky - Key System"
+    title.TextColor3 = Color3.fromRGB(209, 209, 209)
+    title.TextSize = 18
     title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = bg
 
-    local sub = Instance.new("TextLabel")
-    sub.Size = UDim2.new(1, -20, 0, 20)
-    sub.Position = UDim2.new(0, 10, 0, 45)
-    sub.BackgroundTransparency = 1
-    sub.Text = "Join our Discord to get a key"
-    sub.TextColor3 = Color3.fromRGB(150, 150, 170)
-    sub.TextSize = 14
-    sub.Font = Enum.Font.Gotham
-    sub.Parent = bg
+    local line = Instance.new("Frame")
+    line.Size = UDim2.new(1, -30, 0, 1)
+    line.Position = UDim2.new(0, 15, 0, 50)
+    line.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    line.BorderSizePixel = 0
+    line.Parent = bg
+
+    local desc = Instance.new("TextLabel")
+    desc.Size = UDim2.new(1, -30, 0, 40)
+    desc.Position = UDim2.new(0, 15, 0, 58)
+    desc.BackgroundTransparency = 1
+    desc.Text = "This script requires a key to use.\nJoin our Discord server to get your key."
+    desc.TextColor3 = Color3.fromRGB(136, 136, 136)
+    desc.TextSize = 13
+    desc.Font = Enum.Font.Gotham
+    desc.TextXAlignment = Enum.TextXAlignment.Left
+    desc.TextWrapped = true
+    desc.Parent = bg
+
+    local inputFrame = Instance.new("Frame")
+    inputFrame.Size = UDim2.new(1, -30, 0, 38)
+    inputFrame.Position = UDim2.new(0, 15, 0, 105)
+    inputFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    inputFrame.BorderSizePixel = 0
+    inputFrame.Parent = bg
+    Instance.new("UICorner", inputFrame).CornerRadius = UDim.new(0, 6)
+
+    local inputStroke = Instance.new("UIStroke")
+    inputStroke.Color = Color3.fromRGB(40, 40, 40)
+    inputStroke.Thickness = 1
+    inputStroke.Parent = inputFrame
 
     local input = Instance.new("TextBox")
-    input.Size = UDim2.new(1, -40, 0, 40)
-    input.Position = UDim2.new(0, 20, 0, 80)
-    input.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+    input.Size = UDim2.new(1, -16, 1, 0)
+    input.Position = UDim2.new(0, 8, 0, 0)
+    input.BackgroundTransparency = 1
     input.TextColor3 = Color3.fromRGB(255, 255, 255)
-    input.PlaceholderText = "Enter your key..."
-    input.PlaceholderColor3 = Color3.fromRGB(100, 100, 120)
-    input.TextSize = 16
+    input.PlaceholderText = ""
+    input.PlaceholderColor3 = Color3.fromRGB(80, 80, 80)
+    input.TextSize = 14
     input.Font = Enum.Font.Gotham
     input.ClearTextOnFocus = false
     input.BorderSizePixel = 0
-    input.Parent = bg
-    Instance.new("UICorner", input).CornerRadius = UDim.new(0, 6)
+    input.TextXAlignment = Enum.TextXAlignment.Left
+    input.Parent = inputFrame
 
     local status = Instance.new("TextLabel")
-    status.Size = UDim2.new(1, -40, 0, 20)
-    status.Position = UDim2.new(0, 20, 0, 125)
+    status.Size = UDim2.new(1, -30, 0, 18)
+    status.Position = UDim2.new(0, 15, 0, 148)
     status.BackgroundTransparency = 1
     status.Text = ""
     status.TextColor3 = Color3.fromRGB(255, 80, 80)
-    status.TextSize = 13
+    status.TextSize = 12
     status.Font = Enum.Font.Gotham
+    status.TextXAlignment = Enum.TextXAlignment.Left
     status.Parent = bg
 
     local submit = Instance.new("TextButton")
-    submit.Size = UDim2.new(1, -40, 0, 40)
-    submit.Position = UDim2.new(0, 20, 0, 155)
-    submit.BackgroundColor3 = Color3.fromRGB(80, 130, 255)
-    submit.Text = "Submit"
-    submit.TextColor3 = Color3.fromRGB(255, 255, 255)
-    submit.TextSize = 16
+    submit.Size = UDim2.new(1, -30, 0, 38)
+    submit.Position = UDim2.new(0, 15, 0, 170)
+    submit.BackgroundColor3 = Color3.fromRGB(200, 215, 230)
+    submit.Text = "Submit Key"
+    submit.TextColor3 = Color3.fromRGB(12, 12, 12)
+    submit.TextSize = 14
     submit.Font = Enum.Font.GothamBold
     submit.BorderSizePixel = 0
+    submit.AutoButtonColor = true
     submit.Parent = bg
     Instance.new("UICorner", submit).CornerRadius = UDim.new(0, 6)
+
+    local discordBtn = Instance.new("TextButton")
+    discordBtn.Size = UDim2.new(1, -30, 0, 32)
+    discordBtn.Position = UDim2.new(0, 15, 0, 215)
+    discordBtn.BackgroundTransparency = 1
+    discordBtn.Text = "Click For Discord Link"
+    discordBtn.TextColor3 = Color3.fromRGB(0, 169, 239)
+    discordBtn.TextSize = 13
+    discordBtn.Font = Enum.Font.GothamBold
+    discordBtn.BorderSizePixel = 0
+    discordBtn.AutoButtonColor = false
+    discordBtn.Parent = bg
+
+    discordBtn.MouseButton1Click:Connect(function()
+        if setclipboard then
+            setclipboard("discord.gg/akjYjCf3yz")
+            status.Text = "Discord link copied to clipboard!"
+            status.TextColor3 = Color3.fromRGB(200, 215, 230)
+        else
+            status.Text = "discord.gg/akjYjCf3yz"
+            status.TextColor3 = Color3.fromRGB(0, 169, 239)
+        end
+    end)
+
+    discordBtn.MouseEnter:Connect(function()
+        discordBtn.TextColor3 = Color3.fromRGB(120, 190, 255)
+    end)
+    discordBtn.MouseLeave:Connect(function()
+        discordBtn.TextColor3 = Color3.fromRGB(0, 169, 239)
+    end)
+
+    local credit = Instance.new("TextLabel")
+    credit.Size = UDim2.new(1, -30, 0, 16)
+    credit.Position = UDim2.new(0, 15, 0, 255)
+    credit.BackgroundTransparency = 1
+    credit.Text = "discord.gg/akjYjCf3yz"
+    credit.TextColor3 = Color3.fromRGB(60, 60, 60)
+    credit.TextSize = 11
+    credit.Font = Enum.Font.Gotham
+    credit.Parent = bg
 
     local valid = false
     submit.MouseButton1Click:Connect(function()
         local key = input.Text
         if #key < 4 then
-            status.Text = "Key too short"
+            status.Text = "Key is too short"
             status.TextColor3 = Color3.fromRGB(255, 80, 80)
             return
         end
-        submit.Text = "Checking..."
+        submit.Text = "Verifying..."
         submit.Active = false
         local ok, msg = validateKey(key)
         if ok then
             status.Text = msg
-            status.TextColor3 = Color3.fromRGB(80, 255, 80)
+            status.TextColor3 = Color3.fromRGB(100, 220, 100)
+            submit.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+            submit.Text = "Verified"
             task.wait(0.5)
             valid = true
             sg:Destroy()
         else
             status.Text = msg
             status.TextColor3 = Color3.fromRGB(255, 80, 80)
-            submit.Text = "Submit"
+            submit.Text = "Submit Key"
             submit.Active = true
         end
     end)
