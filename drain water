@@ -358,8 +358,13 @@ local function placeBestFish()
             local playArea = plot:FindFirstChild("玩家区域")
             if playArea then
                 local placeBtn = playArea:FindFirstChild("放置按钮")
-                if placeBtn and placeBtn:IsA("Model") then
-                    tankPos = placeBtn:GetPivot().Position
+                if placeBtn then
+                    local putPart = placeBtn:FindFirstChild("Put")
+                    if putPart and putPart:IsA("BasePart") then
+                        tankPos = putPart.Position
+                    else
+                        tankPos = placeBtn:GetPivot().Position
+                    end
                 else
                     local tank = playArea:FindFirstChild("鱼缸")
                     if tank and tank:IsA("Model") then
