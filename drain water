@@ -41,6 +41,7 @@ local FishShowFunc = RemotesFunc:WaitForChild("FishShow")
 local PlaceFishUI = FishShowFunc:WaitForChild("[C-S]PlaceFishUI")
 local TakeFishUI = FishShowFunc:WaitForChild("[C-S]TakeFishUI")
 local GetStateRemote = FishShowFunc:WaitForChild("[C-S]GetState")
+local FishShowUIState = FishShowFunc:WaitForChild("[C-S]GetUIState")
 
 local UpgradeEvent = Remotes:WaitForChild("Upgrade")
 local UpgradeFunc = RemotesFunc:WaitForChild("Upgrade")
@@ -342,6 +343,14 @@ local function placeBestFish()
     if not hrp then return false end
     local saved = hrp.CFrame
     local plotId = math.floor(tonumber(LocalPlayer:GetAttribute("FishShowPlotId")) or 0)
+    if plotId <= 0 then
+        pcall(function()
+            local state = FishShowUIState:InvokeServer()
+            if state and state.plotId then
+                plotId = math.floor(tonumber(state.plotId) or 0)
+            end
+        end)
+    end
     local tankPos = nil
     if plotId > 0 then
         local plot = workspace:FindFirstChild(tostring(plotId))
@@ -355,9 +364,7 @@ local function placeBestFish()
             end
         end
     end
-    if not tankPos then
-        tankPos = Vector3.new(5042, 28, 232)
-    end
+    if not tankPos then return false end
     hrp.CFrame = CFrame.new(tankPos + Vector3.new(0, 3, 0))
     task.wait(0.15)
     pcall(function()
