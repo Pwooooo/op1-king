@@ -331,25 +331,26 @@ local function getCarryItems()
 end
 
 local function placeBestFish()
-    local items, count, cap = getCarryItems()
-    if count == 0 then return false end
-
-    local best = nil
-    local bestPrice = 0
-    for _, item in ipairs(items) do
-        local price = item.finalFishValue or item.price or 0
-        if price > bestPrice then
-            bestPrice = price
-            best = item
-        end
-    end
-
-    if best then
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+    local ok, btn = pcall(function()
+        return PlayerGui.Main.FishTrainingPopup.FIsh.best.go
+    end)
+    if ok and btn and btn:IsA("TextButton") then
         tpToAquarium()
         task.wait(0.5)
-        pcall(function()
-            PlaceFishUI:InvokeServer(tostring(best.uid))
+        local clicked = pcall(function()
+            for _, v in pairs(getconnections(btn.Activated)) do
+                v:Fire()
+            end
         end)
+        if not clicked then
+            pcall(function()
+                local uid = btn.Parent:GetAttribute("FishUid")
+                if uid then
+                    PlaceFishUI:InvokeServer(tostring(uid))
+                end
+            end)
+        end
         task.wait(0.5)
         return true
     end
