@@ -9,14 +9,31 @@ local LocalPlayer = Players.LocalPlayer
 
 local KEY_API = "https://auth-production-181a.up.railway.app/check"
 
+local function getHWID()
+    local ok, id = pcall(function()
+        return game:GetService("RbxAnalyticsService"):GetHardwareId()
+    end)
+    if ok and id and id ~= "" then return id end
+    local ok2, id2 = pcall(function()
+        return game:GetService("RbxAnalyticsService"):GetSessionId()
+    end)
+    if ok2 and id2 and id2 ~= "" then return id2 end
+    return "unknown"
+end
+
+local HWID = getHWID()
+
 local function validateKey(key)
     local ok, res = pcall(function()
-        return game:HttpGet(KEY_API .. "?key=" .. key .. "&userid=" .. LocalPlayer.UserId)
+        return game:HttpGet(KEY_API .. "?key=" .. key .. "&userid=" .. LocalPlayer.UserId .. "&hwid=" .. HWID)
     end)
     if ok and res then
         local decodeOk, data = pcall(function() return HttpService:JSONDecode(res) end)
         if decodeOk and type(data) == "table" and data.valid then
             return true, data.message or "Key valid"
+        end
+        if decodeOk and type(data) == "table" and data.message then
+            return false, data.message
         end
     end
     return false, "Invalid or expired key"
