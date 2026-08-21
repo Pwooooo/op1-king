@@ -175,8 +175,8 @@ local function showKeyGUI()
     local valid = false
     submit.MouseButton1Click:Connect(function()
         local key = input.Text
-        if #key < 4 then
-            status.Text = "Key is too short"
+        if #key < 19 then
+            status.Text = "Key must be in SKY-XXXX-XXXX-XXXX format"
             status.TextColor3 = Color3.fromRGB(255, 80, 80)
             return
         end
