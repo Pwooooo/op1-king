@@ -36,6 +36,18 @@ local OpenEggRemote = EggFunc:WaitForChild("[C-S]OpenEgg")
 local CanOpenEggRemote = EggFunc:WaitForChild("[C-S]CanOpenEgg")
 local EquipBestRemote = PetRemote:WaitForChild("EquipBest")
 
+local FishShowEvent = Remotes:WaitForChild("FishShow")
+local FishShowFunc = RemotesFunc:WaitForChild("FishShow")
+local PlaceFishRemote = FishShowEvent:WaitForChild("[C-S]PlaceFish")
+local TakeFishRemote = FishShowEvent:WaitForChild("[C-S]TakeFish")
+local GetStateRemote = FishShowFunc:WaitForChild("[C-S]GetState")
+
+local UpgradeEvent = Remotes:WaitForChild("Upgrade")
+local UpgradeFunc = RemotesFunc:WaitForChild("Upgrade")
+local BuyCashUpgrade = UpgradeEvent:WaitForChild("[C-S]BuyCashUpgrade")
+local GetUpgradeData = UpgradeFunc:WaitForChild("[C-S]GetUpgradeData")
+local UpgradeHelper = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("UpgradeHelper"))
+
 local LevelData = LocalPlayer:WaitForChild("Level")
 local WaterValue = LevelData:WaitForChild("water")
 local ClickAmountValue = LevelData:WaitForChild("clickAmount")
@@ -69,6 +81,11 @@ local CFG = {
     AutoStage = false,
     AutoBestFish = false,
     AutoBestPet = false,
+    AutoPutFish = false,
+    AutoUpgrade = false,
+    UpgradeSpeed = false,
+    UpgradeBackpack = false,
+    UpgradeFishDisplay = false,
     BestPetInterval = 5,
     ClickId = 0,
     Alive = true,
@@ -293,6 +310,68 @@ local function tpToSell()
     end
 end
 
+local function tpToAquarium()
+    local _, hrp, _ = getCharacter()
+    if not hrp then return end
+    local sellPart = Workspace:FindFirstChild("UIOPEN") and Workspace.UIOPEN:FindFirstChild("sell")
+    if sellPart then
+        hrp.CFrame = CFrame.new(sellPart.Position + Vector3.new(0, 5, 0))
+        task.wait(1)
+    end
+end
+
+local function getCarryItems()
+    local FishFunc = ReplicatedStorage.Remote.Function:WaitForChild("Fish")
+    local GetCarryFishData = FishFunc:WaitForChild("[C-S]GetCarryFishData")
+    local ok, data = pcall(function() return GetCarryFishData:InvokeServer() end)
+    if ok and data then
+        return data.Items or {}, data.Count or 0, data.Capacity or 5
+    end
+    return {}, 0, 5
+end
+
+local function placeBestFish()
+    local items, count, cap = getCarryItems()
+    if count == 0 then return false end
+
+    local best = nil
+    local bestPrice = 0
+    for _, item in ipairs(items) do
+        local price = item.finalFishValue or item.price or 0
+        if price > bestPrice then
+            bestPrice = price
+            best = item
+        end
+    end
+
+    if best then
+        tpToAquarium()
+        task.wait(0.5)
+        pcall(function()
+            PlaceFishRemote:FireServer(best.uid)
+        end)
+        task.wait(0.5)
+        return true
+    end
+    return false
+end
+
+local function buyUpgrade(upgradeName)
+    local ok, data = pcall(function() return GetUpgradeData:InvokeServer() end)
+    if not ok or not data then return false end
+    local info = data[upgradeName]
+    if not info or info.isMax then return false end
+    local price = UpgradeHelper.GetCashPrice(upgradeName, info.level)
+    local cash = tonumber(CashValue.Value) or 0
+    if price and cash >= price then
+        pcall(function()
+            BuyCashUpgrade:FireServer(upgradeName)
+        end)
+        return true
+    end
+    return false
+end
+
 local function getBestAffordableEgg()
     local cash = tonumber(CashValue.Value) or 0
     local bestEgg = nil
@@ -337,6 +416,10 @@ local FishSection = StageTab:AddSection({ Name = "Auto Fish", Position = "right"
 local PetTab = Window:AddTab({ Name = "Pets", Icon = "shield" })
 local EggSection = PetTab:AddSection({ Name = "Egg Auto-Open", Position = "left" })
 local PetMiscSection = PetTab:AddSection({ Name = "Pet Misc", Position = "right" })
+
+local BaseTab = Window:AddTab({ Name = "Base", Icon = "hammer" })
+local AquariumSection = BaseTab:AddSection({ Name = "Aquarium", Position = "left" })
+local UpgradeSection = BaseTab:AddSection({ Name = "Upgrades", Position = "right" })
 
 local InfoTab = Window:AddTab({ Name = "Info", Icon = "eye" })
 local StatsSection = InfoTab:AddSection({ Name = "Stats", Position = "left" })
@@ -470,6 +553,64 @@ PetMiscSection:AddButton({
     Name = "Go To Show",
     Callback = function()
         doGoShow()
+    end,
+})
+
+AquariumSection:AddToggle({
+    Name = "Auto Put Best Fish",
+    Default = false,
+    Callback = function(value)
+        CFG.AutoPutFish = value
+    end,
+})
+
+AquariumSection:AddButton({
+    Name = "Put Best Fish Now",
+    Callback = function()
+        pcall(placeBestFish)
+    end,
+})
+
+UpgradeSection:AddToggle({
+    Name = "Auto Upgrade",
+    Default = false,
+    Callback = function(value)
+        CFG.AutoUpgrade = value
+    end,
+})
+
+UpgradeSection:AddToggle({
+    Name = "Speed",
+    Default = false,
+    Callback = function(value)
+        CFG.UpgradeSpeed = value
+    end,
+})
+
+UpgradeSection:AddToggle({
+    Name = "Backpack",
+    Default = false,
+    Callback = function(value)
+        CFG.UpgradeBackpack = value
+    end,
+})
+
+UpgradeSection:AddToggle({
+    Name = "Fish Display",
+    Default = false,
+    Callback = function(value)
+        CFG.UpgradeFishDisplay = value
+    end,
+})
+
+UpgradeSection:AddButton({
+    Name = "Buy All Selected",
+    Callback = function()
+        pcall(function()
+            if CFG.UpgradeSpeed then buyUpgrade("Speed") end
+            if CFG.UpgradeBackpack then buyUpgrade("Backpack") end
+            if CFG.UpgradeFishDisplay then buyUpgrade("FishDisplay") end
+        end)
     end,
 })
 
@@ -624,6 +765,35 @@ task.spawn(function()
             end
         end
         task.wait(CFG.BestPetInterval)
+    end
+end)
+
+task.spawn(function()
+    while CFG.Alive do
+        if CFG.AutoPutFish then
+            pcall(function()
+                local items, count = getCarryItems()
+                if count > 0 then
+                    placeBestFish()
+                end
+            end)
+        end
+        task.wait(3)
+    end
+end)
+
+task.spawn(function()
+    while CFG.Alive do
+        if CFG.AutoUpgrade then
+            pcall(function()
+                if CFG.UpgradeSpeed then buyUpgrade("Speed") end
+                task.wait(0.3)
+                if CFG.UpgradeBackpack then buyUpgrade("Backpack") end
+                task.wait(0.3)
+                if CFG.UpgradeFishDisplay then buyUpgrade("FishDisplay") end
+            end)
+        end
+        task.wait(2)
     end
 end)
 
