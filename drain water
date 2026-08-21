@@ -4,7 +4,136 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
+
+local KEY_API = "YOUR_DISCORD_BOT_API_URL"
+
+local function validateKey(key)
+    local ok, res = pcall(function()
+        return game:HttpGet(KEY_API .. "?key=" .. key .. "&userid=" .. LocalPlayer.UserId)
+    end)
+    if ok and res then
+        local data = pcall(function() return HttpService:JSONDecode(res) end)
+        if type(data) == "table" and data.valid then
+            return true, data.message or "Key valid"
+        end
+    end
+    return false, "Invalid or expired key"
+end
+
+local function showKeyGUI()
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "KeySystem"
+    sg.ResetOnSpawn = false
+    sg.IgnoreGuiInset = true
+    sg.DisplayOrder = 999
+    sg.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(0, 380, 0, 220)
+    bg.Position = UDim2.new(0.5, -190, 0.5, -110)
+    bg.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    bg.BorderSizePixel = 0
+    bg.Parent = sg
+    Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 10)
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(80, 130, 255)
+    stroke.Thickness = 2
+    stroke.Parent = bg
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -20, 0, 40)
+    title.Position = UDim2.new(0, 10, 0, 10)
+    title.BackgroundTransparency = 1
+    title.Text = "Key System"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 22
+    title.Font = Enum.Font.GothamBold
+    title.Parent = bg
+
+    local sub = Instance.new("TextLabel")
+    sub.Size = UDim2.new(1, -20, 0, 20)
+    sub.Position = UDim2.new(0, 10, 0, 45)
+    sub.BackgroundTransparency = 1
+    sub.Text = "Join our Discord to get a key"
+    sub.TextColor3 = Color3.fromRGB(150, 150, 170)
+    sub.TextSize = 14
+    sub.Font = Enum.Font.Gotham
+    sub.Parent = bg
+
+    local input = Instance.new("TextBox")
+    input.Size = UDim2.new(1, -40, 0, 40)
+    input.Position = UDim2.new(0, 20, 0, 80)
+    input.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+    input.TextColor3 = Color3.fromRGB(255, 255, 255)
+    input.PlaceholderText = "Enter your key..."
+    input.PlaceholderColor3 = Color3.fromRGB(100, 100, 120)
+    input.TextSize = 16
+    input.Font = Enum.Font.Gotham
+    input.ClearTextOnFocus = false
+    input.BorderSizePixel = 0
+    input.Parent = bg
+    Instance.new("UICorner", input).CornerRadius = UDim.new(0, 6)
+
+    local status = Instance.new("TextLabel")
+    status.Size = UDim2.new(1, -40, 0, 20)
+    status.Position = UDim2.new(0, 20, 0, 125)
+    status.BackgroundTransparency = 1
+    status.Text = ""
+    status.TextColor3 = Color3.fromRGB(255, 80, 80)
+    status.TextSize = 13
+    status.Font = Enum.Font.Gotham
+    status.Parent = bg
+
+    local submit = Instance.new("TextButton")
+    submit.Size = UDim2.new(1, -40, 0, 40)
+    submit.Position = UDim2.new(0, 20, 0, 155)
+    submit.BackgroundColor3 = Color3.fromRGB(80, 130, 255)
+    submit.Text = "Submit"
+    submit.TextColor3 = Color3.fromRGB(255, 255, 255)
+    submit.TextSize = 16
+    submit.Font = Enum.Font.GothamBold
+    submit.BorderSizePixel = 0
+    submit.Parent = bg
+    Instance.new("UICorner", submit).CornerRadius = UDim.new(0, 6)
+
+    local valid = false
+    submit.MouseButton1Click:Connect(function()
+        local key = input.Text
+        if #key < 4 then
+            status.Text = "Key too short"
+            status.TextColor3 = Color3.fromRGB(255, 80, 80)
+            return
+        end
+        submit.Text = "Checking..."
+        submit.Active = false
+        local ok, msg = validateKey(key)
+        if ok then
+            status.Text = msg
+            status.TextColor3 = Color3.fromRGB(80, 255, 80)
+            task.wait(0.5)
+            valid = true
+            sg:Destroy()
+        else
+            status.Text = msg
+            status.TextColor3 = Color3.fromRGB(255, 80, 80)
+            submit.Text = "Submit"
+            submit.Active = true
+        end
+    end)
+
+    input.FocusLost:Connect(function(enter)
+        if enter then
+            submit:Activate()
+        end
+    end)
+
+    repeat task.wait() until valid
+end
+
+showKeyGUI()
 
 local NeverZenSource = game:HttpGet("https://raw.githubusercontent.com/Pwooooo/op1-king/main/NeverZen_lib.lua"):gsub("\r\n", "\n")
 local NeverZen = loadstring(NeverZenSource)()
