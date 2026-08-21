@@ -341,7 +341,23 @@ local function placeBestFish()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
     local saved = hrp.CFrame
-    local tankPos = Vector3.new(5000, 22.5, 131.5)
+    local plotId = math.floor(tonumber(LocalPlayer:GetAttribute("FishShowPlotId")) or 0)
+    local tankPos = nil
+    if plotId > 0 then
+        local plot = workspace:FindFirstChild(tostring(plotId))
+        if plot then
+            local playArea = plot:FindFirstChild("玩家区域")
+            if playArea then
+                local tank = playArea:FindFirstChild("鱼缸")
+                if tank and tank:IsA("Model") then
+                    tankPos = tank:GetPivot().Position
+                end
+            end
+        end
+    end
+    if not tankPos then
+        tankPos = Vector3.new(5042, 28, 232)
+    end
     hrp.CFrame = CFrame.new(tankPos + Vector3.new(0, 3, 0))
     task.wait(0.15)
     pcall(function()
