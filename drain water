@@ -1,0 +1,249 @@
+repeat task.wait() until game:IsLoaded()
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+local NeverZen = loadstring(game:HttpGet("https://raw.githubusercontent.com/Pwooooo/op1-king/main/NeverZen_lib"))()
+local Handler = require(ReplicatedStorage:WaitForChild("Utils"):WaitForChild("Handler"))
+
+local Remotes = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Event")
+local LevelRemote = Remotes:WaitForChild("Level")
+local RebirthRemote = Remotes:WaitForChild("Rebirth")
+local GroupRemote = Remotes:WaitForChild("Group")
+
+local ClickRemote = LevelRemote:WaitForChild("[C-S]Click")
+local ReturnHomeRemote = LevelRemote:WaitForChild("[C-S]ReturnHome")
+local GoShowRemote = LevelRemote:WaitForChild("[C-S]GoShow")
+local TryRebirthRemote = RebirthRemote:WaitForChild("[C - S]TryRebirth")
+local SetAutoClickRemote = GroupRemote:WaitForChild("SetAutoClick")
+
+local LevelData = LocalPlayer:WaitForChild("Level")
+local WaterValue = LevelData:WaitForChild("water")
+local ClickAmountValue = LevelData:WaitForChild("clickAmount")
+local RebirthData = LocalPlayer:WaitForChild("Rebirth")
+local RebirthValue = RebirthData:WaitForChild("rebirth")
+local CashData = LocalPlayer:WaitForChild("Cash")
+local CashValue = CashData:WaitForChild("cash")
+local BackpackData = LocalPlayer:WaitForChild("BackpackData")
+local BackpackAmount = BackpackData:WaitForChild("amount")
+local BackpackCapacity = BackpackData:WaitForChild("capacity")
+
+local CFG = {
+    AutoClick = false,
+    ClickDelay = 0.1,
+    AutoRebirth = false,
+    RebirthThreshold = 1000000,
+    AutoReturnHome = false,
+    ReturnHomeInterval = 30,
+    AutoEquipBest = false,
+    AutoCollectChest = false,
+    ChestInterval = 5,
+    ClickId = 0,
+    Alive = true,
+    Connections = {},
+}
+
+getgenv().DrainWater = CFG
+
+local function formatNum(n)
+    return Handler.Num.Abb(tonumber(n) or 0)
+end
+
+local function doClick()
+    CFG.ClickId = CFG.ClickId + 1
+    ClickRemote:FireServer(CFG.ClickId)
+end
+
+local function doRebirth()
+    TryRebirthRemote:FireServer()
+end
+
+local function doReturnHome()
+    ReturnHomeRemote:FireServer()
+end
+
+local function doGoShow()
+    GoShowRemote:FireServer()
+end
+
+local function getAutoClickRemote()
+    return GroupRemote:FindFirstChild("SetAutoClick")
+end
+
+local function toggleAutoClickServer(enabled)
+    local r = getAutoClickRemote()
+    if r then
+        r:FireServer(enabled)
+    end
+end
+
+local Window = NeverZen.new({
+    Name = "Drain Water",
+    SubTitle = "Automation",
+    Keybind = Enum.KeyCode.LeftControl,
+    Scale = UDim2.new(0, 500, 0, 350),
+    Shadow = true,
+    Acrylic = true,
+})
+
+local AutoTab = Window:AddTab({ Name = "Automation", Icon = "zap" })
+local FarmSection = AutoTab:AddSection({ Name = "Farming", Position = "left" })
+local TravelSection = AutoTab:AddSection({ Name = "Travel", Position = "right" })
+local MiscSection = AutoTab:AddSection({ Name = "Misc", Position = "right" })
+
+local InfoTab = Window:AddTab({ Name = "Info", Icon = "info" })
+local StatsSection = InfoTab:AddSection({ Name = "Stats", Position = "left" })
+
+FarmSection:AddToggle({
+    Name = "Auto Click",
+    Default = false,
+    Callback = function(value)
+        CFG.AutoClick = value
+    end,
+})
+
+FarmSection:AddSlider({
+    Name = "Click Delay (s)",
+    Min = 0.01,
+    Max = 2,
+    Default = 0.1,
+    Round = 2,
+    Type = "s",
+    Callback = function(value)
+        CFG.ClickDelay = value
+    end,
+})
+
+FarmSection:AddToggle({
+    Name = "Auto Rebirth",
+    Default = false,
+    Callback = function(value)
+        CFG.AutoRebirth = value
+    end,
+})
+
+FarmSection:AddSlider({
+    Name = "Rebirth At (water)",
+    Min = 1000,
+    Max = 100000000,
+    Default = 1000000,
+    Round = 0,
+    Type = "",
+    Callback = function(value)
+        CFG.RebirthThreshold = value
+    end,
+})
+
+TravelSection:AddButton({
+    Name = "Return Home",
+    Callback = function()
+        doReturnHome()
+    end,
+})
+
+TravelSection:AddButton({
+    Name = "Go To Show",
+    Callback = function()
+        doGoShow()
+    end,
+})
+
+TravelSection:AddToggle({
+    Name = "Auto Return Home",
+    Default = false,
+    Callback = function(value)
+        CFG.AutoReturnHome = value
+    end,
+})
+
+TravelSection:AddSlider({
+    Name = "Return Interval (s)",
+    Min = 5,
+    Max = 120,
+    Default = 30,
+    Round = 0,
+    Type = "s",
+    Callback = function(value)
+        CFG.ReturnHomeInterval = value
+    end,
+})
+
+MiscSection:AddButton({
+    Name = "Equip Best Pet",
+    Callback = function()
+        local equipBest = Remotes:FindFirstChild("Pet") and Remotes.Pet:FindFirstChild("EquipBest")
+        if equipBest then
+            equipBest:FireServer()
+        end
+    end,
+})
+
+MiscSection:AddButton({
+    Name = "Re-Pet Data",
+    Callback = function()
+        local rePet = Remotes:FindFirstChild("Pet") and Remotes.Pet:FindFirstChild("RePetData")
+        if rePet then
+            rePet:FireServer()
+        end
+    end,
+})
+
+local WaterLabel = StatsSection:AddLabel("Water: 0")
+local CashLabel = StatsSection:AddLabel("Cash: $0")
+local RebirthLabel = StatsSection:AddLabel("Rebirths: 0")
+local BackpackLabel = StatsSection:AddLabel("Backpack: 0/0")
+local ClickLabel = StatsSection:AddLabel("Click Power: 0")
+
+task.spawn(function()
+    while CFG.Alive do
+        task.wait(0.5)
+        WaterLabel:SetValue("Water: " .. formatNum(WaterValue.Value))
+        CashLabel:SetValue("Cash: $" .. formatNum(CashValue.Value))
+        RebirthLabel:SetValue("Rebirths: " .. formatNum(RebirthValue.Value))
+        BackpackLabel:SetValue("Backpack: " .. formatNum(BackpackAmount.Value) .. "/" .. formatNum(BackpackCapacity.Value))
+        ClickLabel:SetValue("Click Power: " .. formatNum(ClickAmountValue.Value))
+    end
+end)
+
+task.spawn(function()
+    while CFG.Alive do
+        if CFG.AutoClick then
+            doClick()
+            task.wait(CFG.ClickDelay)
+        else
+            task.wait(0.1)
+        end
+    end
+end)
+
+task.spawn(function()
+    while CFG.Alive do
+        if CFG.AutoRebirth then
+            if tonumber(WaterValue.Value) >= CFG.RebirthThreshold then
+                doRebirth()
+                task.wait(1)
+            end
+        end
+        task.wait(0.5)
+    end
+end)
+
+task.spawn(function()
+    while CFG.Alive do
+        if CFG.AutoReturnHome then
+            task.wait(CFG.ReturnHomeInterval)
+            if CFG.AutoReturnHome then
+                doReturnHome()
+            end
+        else
+            task.wait(0.5)
+        end
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+end)
