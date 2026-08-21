@@ -7,15 +7,15 @@ local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
-local KEY_API = "YOUR_DISCORD_BOT_API_URL"
+local KEY_API = "https://auth-production-181a.up.railway.app/check"
 
 local function validateKey(key)
     local ok, res = pcall(function()
         return game:HttpGet(KEY_API .. "?key=" .. key .. "&userid=" .. LocalPlayer.UserId)
     end)
     if ok and res then
-        local data = pcall(function() return HttpService:JSONDecode(res) end)
-        if type(data) == "table" and data.valid then
+        local decodeOk, data = pcall(function() return HttpService:JSONDecode(res) end)
+        if decodeOk and type(data) == "table" and data.valid then
             return true, data.message or "Key valid"
         end
     end
