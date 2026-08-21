@@ -335,24 +335,23 @@ local function placeBestFish()
     local ok, btn = pcall(function()
         return PlayerGui.Main.FishTrainingPopup.FIsh.best.go
     end)
-    if ok and btn and btn:IsA("TextButton") then
-        local clicked = pcall(function()
-            for _, v in pairs(getconnections(btn.Activated)) do
-                v:Fire()
-            end
-        end)
-        if not clicked then
-            pcall(function()
-                local uid = btn.Parent:GetAttribute("FishUid")
-                if uid then
-                    PlaceFishUI:InvokeServer(tostring(uid))
-                end
-            end)
+    if not (ok and btn and btn:IsA("TextButton")) then return false end
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    local saved = hrp.CFrame
+    local tankPos = Vector3.new(5000, 22.5, 131.5)
+    hrp.CFrame = CFrame.new(tankPos + Vector3.new(0, 3, 0))
+    task.wait(0.15)
+    pcall(function()
+        for _, v in pairs(getconnections(btn.Activated)) do
+            v:Fire()
         end
-        task.wait(0.5)
-        return true
-    end
-    return false
+    end)
+    task.wait(0.15)
+    hrp.CFrame = saved
+    return true
 end
 
 local function buyUpgrade(upgradeName)
