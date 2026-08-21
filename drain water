@@ -6,7 +6,8 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
-local NeverZen = loadstring(game:HttpGet("https://raw.githubusercontent.com/Pwooooo/op1-king/main/NeverZen_lib"))()
+local NeverZenSource = game:HttpGet("https://raw.githubusercontent.com/Pwooooo/op1-king/main/NeverZen_lib.lua"):gsub("\r\n", "\n")
+local NeverZen = loadstring(NeverZenSource)()
 local Handler = require(ReplicatedStorage:WaitForChild("Utils"):WaitForChild("Handler"))
 
 local Remotes = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Event")
