@@ -375,14 +375,14 @@ local function placeBestFish()
         end
     end
     if not tankPos then return false end
-    hrp.CFrame = CFrame.new(tankPos + Vector3.new(0, 3, 0))
-    task.wait(0.15)
+    hrp.CFrame = CFrame.new(tankPos.X, tankPos.Y + 1, tankPos.Z)
+    task.wait(0.5)
     pcall(function()
         for _, v in pairs(getconnections(btn.Activated)) do
             v:Fire()
         end
     end)
-    task.wait(0.15)
+    task.wait(0.3)
     hrp.CFrame = saved
     return true
 end
