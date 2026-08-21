@@ -9,17 +9,29 @@ local LocalPlayer = Players.LocalPlayer
 local NeverZenSource = game:HttpGet("https://raw.githubusercontent.com/Pwooooo/op1-king/main/NeverZen_lib.lua"):gsub("\r\n", "\n")
 local NeverZen = loadstring(NeverZenSource)()
 local Handler = require(ReplicatedStorage:WaitForChild("Utils"):WaitForChild("Handler"))
+local StageHelper = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("StageHelper"))
+local EggHelper = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("EggHelper"))
 
 local Remotes = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Event")
+local RemotesFunc = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Function")
 local LevelRemote = Remotes:WaitForChild("Level")
 local RebirthRemote = Remotes:WaitForChild("Rebirth")
 local GroupRemote = Remotes:WaitForChild("Group")
+local PetRemote = Remotes:WaitForChild("Pet")
+local EggEvent = Remotes:WaitForChild("Egg")
+local StageRemote = Remotes:WaitForChild("Stage")
 
 local ClickRemote = LevelRemote:WaitForChild("[C-S]Click")
 local ReturnHomeRemote = LevelRemote:WaitForChild("[C-S]ReturnHome")
 local GoShowRemote = LevelRemote:WaitForChild("[C-S]GoShow")
 local TryRebirthRemote = RebirthRemote:WaitForChild("[C - S]TryRebirth")
-local SetAutoClickRemote = GroupRemote:WaitForChild("SetAutoClick")
+local StandingWaterRemote = StageRemote:WaitForChild("[C-S]StandingWater")
+local StageFunc = RemotesFunc:WaitForChild("Stage")
+local GetStageState = StageFunc:WaitForChild("[C-S]GetStageState")
+local EggFunc = RemotesFunc:WaitForChild("Egg")
+local OpenEggRemote = EggFunc:WaitForChild("[C-S]OpenEgg")
+local CanOpenEggRemote = EggFunc:WaitForChild("[C-S]CanOpenEgg")
+local EquipBestRemote = PetRemote:WaitForChild("EquipBest")
 
 local LevelData = LocalPlayer:WaitForChild("Level")
 local WaterValue = LevelData:WaitForChild("water")
@@ -39,15 +51,15 @@ local CFG = {
     RebirthThreshold = 1000000,
     AutoReturnHome = false,
     ReturnHomeInterval = 30,
-    AutoEquipBest = false,
-    AutoCollectChest = false,
-    ChestInterval = 5,
+    AutoBestZone = false,
+    AutoBestPet = false,
+    BestPetInterval = 5,
     ClickId = 0,
     Alive = true,
     Connections = {},
 }
 
-getgenv().DrainWater = CFG
+getgenv().Sky = CFG
 
 local function formatNum(n)
     return Handler.Num.Abb(tonumber(n) or 0)
@@ -70,33 +82,65 @@ local function doGoShow()
     GoShowRemote:FireServer()
 end
 
-local function getAutoClickRemote()
-    return GroupRemote:FindFirstChild("SetAutoClick")
+local function getBestStage()
+    local water = tonumber(WaterValue.Value) or 0
+    local best = 1
+    for _, id in ipairs(StageHelper.GetStageIds()) do
+        if water >= StageHelper.GetWaterRequired(id) then
+            best = id
+        end
+    end
+    return best
 end
 
-local function toggleAutoClickServer(enabled)
-    local r = getAutoClickRemote()
-    if r then
-        r:FireServer(enabled)
+local function getBestAffordableEgg()
+    local cash = tonumber(CashValue.Value) or 0
+    local bestEgg = nil
+    local bestPrice = 0
+    local allEggs = EggHelper.GetAllEggConfig()
+    for k, v in pairs(allEggs) do
+        if type(v) == "table" and v.costType == "Cash" and v.cashPrice then
+            local price = Handler.Num.UnAbb(v.cashPrice) or 0
+            if price > 0 and cash >= price and price > bestPrice then
+                bestPrice = price
+                bestEgg = tonumber(k)
+            end
+        end
     end
+    return bestEgg
+end
+
+local function doOpenEgg(eggId)
+    local success, result = pcall(function()
+        return OpenEggRemote:InvokeServer(eggId)
+    end)
+    return success and result
 end
 
 local Window = NeverZen.new({
-    Name = "Drain Water",
-    SubTitle = "Automation",
+    Name = "Sky",
+    SubTitle = "+1 Drain Water Per Click",
     Keybind = Enum.KeyCode.LeftControl,
-    Scale = UDim2.new(0, 650, 0, 400),
+    Scale = UDim2.new(0, 700, 0, 460),
     Shadow = true,
     Acrylic = true,
 })
 
-local AutoTab = Window:AddTab({ Name = "Automation", Icon = "zap" })
-local FarmSection = AutoTab:AddSection({ Name = "Farming", Position = "left" })
-local TravelSection = AutoTab:AddSection({ Name = "Travel", Position = "right" })
-local MiscSection = AutoTab:AddSection({ Name = "Misc", Position = "right" })
+local FarmTab = Window:AddTab({ Name = "Farm", Icon = "zap" })
+local FarmSection = FarmTab:AddSection({ Name = "Farming", Position = "left" })
+local RebirthSection = FarmTab:AddSection({ Name = "Rebirth", Position = "right" })
 
-local InfoTab = Window:AddTab({ Name = "Info", Icon = "info" })
+local TravelTab = Window:AddTab({ Name = "Travel", Icon = "globe" })
+local ZoneSection = TravelTab:AddSection({ Name = "Zones", Position = "left" })
+local TravelSection = TravelTab:AddSection({ Name = "Travel", Position = "right" })
+
+local PetTab = Window:AddTab({ Name = "Pets", Icon = "shield" })
+local EggSection = PetTab:AddSection({ Name = "Egg Auto-Open", Position = "left" })
+local PetMiscSection = PetTab:AddSection({ Name = "Pet Misc", Position = "right" })
+
+local InfoTab = Window:AddTab({ Name = "Info", Icon = "eye" })
 local StatsSection = InfoTab:AddSection({ Name = "Stats", Position = "left" })
+local ZoneInfoSection = InfoTab:AddSection({ Name = "Zone Info", Position = "right" })
 
 FarmSection:AddToggle({
     Name = "Auto Click",
@@ -118,7 +162,7 @@ FarmSection:AddSlider({
     end,
 })
 
-FarmSection:AddToggle({
+RebirthSection:AddToggle({
     Name = "Auto Rebirth",
     Default = false,
     Callback = function(value)
@@ -126,7 +170,7 @@ FarmSection:AddToggle({
     end,
 })
 
-FarmSection:AddSlider({
+RebirthSection:AddSlider({
     Name = "Rebirth At (water)",
     Min = 1000,
     Max = 100000000,
@@ -135,6 +179,26 @@ FarmSection:AddSlider({
     Type = "",
     Callback = function(value)
         CFG.RebirthThreshold = value
+    end,
+})
+
+ZoneSection:AddToggle({
+    Name = "Auto Best Zone",
+    Default = false,
+    Callback = function(value)
+        CFG.AutoBestZone = value
+    end,
+})
+
+ZoneSection:AddSlider({
+    Name = "Zone Check Interval (s)",
+    Min = 1,
+    Max = 30,
+    Default = 5,
+    Round = 0,
+    Type = "s",
+    Callback = function(value)
+        CFG.ZoneInterval = value
     end,
 })
 
@@ -172,20 +236,47 @@ TravelSection:AddSlider({
     end,
 })
 
-MiscSection:AddButton({
-    Name = "Equip Best Pet",
+EggSection:AddToggle({
+    Name = "Auto Open Best Egg",
+    Default = false,
+    Callback = function(value)
+        CFG.AutoBestPet = value
+    end,
+})
+
+EggSection:AddSlider({
+    Name = "Egg Open Interval (s)",
+    Min = 1,
+    Max = 30,
+    Default = 5,
+    Round = 0,
+    Type = "s",
+    Callback = function(value)
+        CFG.BestPetInterval = value
+    end,
+})
+
+EggSection:AddButton({
+    Name = "Open Best Affordable Egg",
     Callback = function()
-        local equipBest = Remotes:FindFirstChild("Pet") and Remotes.Pet:FindFirstChild("EquipBest")
-        if equipBest then
-            equipBest:FireServer()
+        local eggId = getBestAffordableEgg()
+        if eggId then
+            doOpenEgg(eggId)
         end
     end,
 })
 
-MiscSection:AddButton({
+PetMiscSection:AddButton({
+    Name = "Equip Best Pet",
+    Callback = function()
+        EquipBestRemote:FireServer()
+    end,
+})
+
+PetMiscSection:AddButton({
     Name = "Re-Pet Data",
     Callback = function()
-        local rePet = Remotes:FindFirstChild("Pet") and Remotes.Pet:FindFirstChild("RePetData")
+        local rePet = PetRemote:FindFirstChild("RePetData")
         if rePet then
             rePet:FireServer()
         end
@@ -197,6 +288,9 @@ local CashLabel = StatsSection:AddLabel("Cash: $0")
 local RebirthLabel = StatsSection:AddLabel("Rebirths: 0")
 local BackpackLabel = StatsSection:AddLabel("Backpack: 0/0")
 local ClickLabel = StatsSection:AddLabel("Click Power: 0")
+local BestStageLabel = ZoneInfoSection:AddLabel("Best Stage: 1")
+local BestEggLabel = ZoneInfoSection:AddLabel("Best Egg: Basic Egg")
+local StageStatus = ZoneInfoSection:AddLabel("Current Stage: 1")
 
 task.spawn(function()
     while CFG.Alive do
@@ -206,6 +300,19 @@ task.spawn(function()
         RebirthLabel:SetValue("Rebirths: " .. formatNum(RebirthValue.Value))
         BackpackLabel:SetValue("Backpack: " .. formatNum(BackpackAmount.Value) .. "/" .. formatNum(BackpackCapacity.Value))
         ClickLabel:SetValue("Click Power: " .. formatNum(ClickAmountValue.Value))
+
+        local bestStage = getBestStage()
+        BestStageLabel:SetValue("Best Stage: " .. bestStage)
+
+        local eggId = getBestAffordableEgg()
+        if eggId then
+            local name = EggHelper.GetEggName(eggId)
+            BestEggLabel:SetValue("Best Egg: " .. name .. " (id:" .. eggId .. ")")
+        else
+            BestEggLabel:SetValue("Best Egg: None affordable")
+        end
+
+        StageStatus:SetValue("Current Stage: " .. (LocalPlayer:GetAttribute("ActiveWaterStageId") or "?"))
     end
 end)
 
@@ -242,6 +349,42 @@ task.spawn(function()
         else
             task.wait(0.5)
         end
+    end
+end)
+
+task.spawn(function()
+    while CFG.Alive do
+        if CFG.AutoBestZone then
+            local bestStage = getBestStage()
+            local activeStage = LocalPlayer:GetAttribute("ActiveWaterStageId") or 0
+            if bestStage ~= activeStage then
+                local success, state = pcall(function()
+                    return GetStageState:InvokeServer(bestStage)
+                end)
+                if success and state and not state.completed then
+                    doGoShow()
+                    task.wait(2)
+                end
+            end
+        end
+        task.wait(CFG.ZoneInterval or 5)
+    end
+end)
+
+task.spawn(function()
+    while CFG.Alive do
+        if CFG.AutoBestPet then
+            local eggId = getBestAffordableEgg()
+            if eggId then
+                local canOpen = pcall(function()
+                    return CanOpenEggRemote:InvokeServer(eggId)
+                end)
+                if canOpen then
+                    doOpenEgg(eggId)
+                end
+            end
+        end
+        task.wait(CFG.BestPetInterval)
     end
 end)
 
