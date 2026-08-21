@@ -38,8 +38,8 @@ local EquipBestRemote = PetRemote:WaitForChild("EquipBest")
 
 local FishShowEvent = Remotes:WaitForChild("FishShow")
 local FishShowFunc = RemotesFunc:WaitForChild("FishShow")
-local PlaceFishRemote = FishShowEvent:WaitForChild("[C-S]PlaceFish")
-local TakeFishRemote = FishShowEvent:WaitForChild("[C-S]TakeFish")
+local PlaceFishUI = FishShowFunc:WaitForChild("[C-S]PlaceFishUI")
+local TakeFishUI = FishShowFunc:WaitForChild("[C-S]TakeFishUI")
 local GetStateRemote = FishShowFunc:WaitForChild("[C-S]GetState")
 
 local UpgradeEvent = Remotes:WaitForChild("Upgrade")
@@ -313,9 +313,9 @@ end
 local function tpToAquarium()
     local _, hrp, _ = getCharacter()
     if not hrp then return end
-    local sellPart = Workspace:FindFirstChild("UIOPEN") and Workspace.UIOPEN:FindFirstChild("sell")
-    if sellPart then
-        hrp.CFrame = CFrame.new(sellPart.Position + Vector3.new(0, 5, 0))
+    local centerShow = Workspace:FindFirstChild("CenterShow")
+    if centerShow then
+        hrp.CFrame = CFrame.new(5000, 22, 131)
         task.wait(1)
     end
 end
@@ -348,7 +348,7 @@ local function placeBestFish()
         tpToAquarium()
         task.wait(0.5)
         pcall(function()
-            PlaceFishRemote:FireServer(best.uid)
+            PlaceFishUI:InvokeServer(tostring(best.uid))
         end)
         task.wait(0.5)
         return true
