@@ -336,8 +336,6 @@ local function placeBestFish()
         return PlayerGui.Main.FishTrainingPopup.FIsh.best.go
     end)
     if ok and btn and btn:IsA("TextButton") then
-        tpToAquarium()
-        task.wait(0.5)
         local clicked = pcall(function()
             for _, v in pairs(getconnections(btn.Activated)) do
                 v:Fire()
