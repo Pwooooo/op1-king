@@ -72,6 +72,8 @@ local CFG = {
     BestPetInterval = 5,
     ClickId = 0,
     Alive = true,
+    StageStartTime = nil,
+    SlowStage = false,
 }
 
 getgenv().Sky = CFG
@@ -551,9 +553,13 @@ task.spawn(function()
                 local activeStage = getCurrentStage()
                 local _, _, _, completed = getStageProgress(activeStage)
                 if completed then
+                    CFG.SlowStage = false
+                    CFG.StageStartTime = nil
                     local nextStage = getNextUncompletedStage()
                     if nextStage and nextStage ~= activeStage then
                         tpToStage(nextStage)
+                        task.wait(1)
+                        CFG.StageStartTime = tick()
                     end
                 else
                     local _, hrp, _ = getCharacter()
@@ -562,6 +568,10 @@ task.spawn(function()
                         local dist = (hrp.Position - surfPos).Magnitude
                         if dist > 20 then
                             tpToStage(activeStage)
+                            task.wait(1)
+                            CFG.StageStartTime = tick()
+                        elseif CFG.StageStartTime and (tick() - CFG.StageStartTime) > 30 then
+                            CFG.SlowStage = true
                         end
                     end
                 end
@@ -573,7 +583,7 @@ end)
 
 task.spawn(function()
     while CFG.Alive do
-        if CFG.AutoBestFish then
+        if CFG.AutoBestFish and CFG.AutoStage and CFG.SlowStage then
             pcall(function()
                 local count, cap = getCarryCount()
                 if count >= cap then
