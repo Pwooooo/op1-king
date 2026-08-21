@@ -135,6 +135,7 @@ end
 
 showKeyGUI()
 
+local function loadMainScript()
 local NeverZenSource = game:HttpGet("https://raw.githubusercontent.com/Pwooooo/op1-king/main/NeverZen_lib.lua"):gsub("\r\n", "\n")
 local NeverZen = loadstring(NeverZenSource)()
 local Handler = require(ReplicatedStorage:WaitForChild("Utils"):WaitForChild("Handler"))
@@ -960,3 +961,6 @@ end)
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(1)
 end)
+end
+
+loadMainScript()
