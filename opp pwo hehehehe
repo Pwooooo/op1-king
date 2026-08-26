@@ -1,4 +1,4 @@
--- Project Exodus | PWO | Obsidian v12 REAL RATE - recycle ores to dropper for true more per sec
+-- Project Exodus | PWO | Obsidian v13 FIRETOUCH DROP - spam Drop touch for extra ores
 -- Fixes: ore flying at high speed (stabilizer + capped velocity), dropper produce actually faster (OreLimit + DropRate + duplication)
 -- Features: Ore Speed 1-50x (stabilized), Auto TP To Sell, Dropper Produce Faster 1-50x, Ore Value Maxer 1-50x
 
@@ -370,6 +370,28 @@ local function startDropperFaster()
                         local baseWorth = ore:GetAttribute("BaseWorth") or ore:GetAttribute("Worth") or 100
                         ore:SetAttribute("Worth", math.floor(baseWorth * 1.5))
                         ore:SetAttribute("IsTeleporting", false)
+                    end
+                end)
+            end
+            -- FIRETOUCH SPAM: force droppers to drop extra ores by touching Drop part
+            if dropperSpeed > 1 and firetouchinterest then
+                pcall(function()
+                    for _, dropper in ipairs(getDroppers()) do
+                        local dropPart = dropper:FindFirstChild("Drop")
+                        if dropPart then
+                            local dummy = Instance.new("Part")
+                            dummy.Size = Vector3.new(0.5,0.5,0.5)
+                            dummy.Transparency = 1
+                            dummy.CanCollide = false
+                            dummy.Anchored = true
+                            dummy.CFrame = dropPart.CFrame
+                            dummy.Parent = workspace
+                            firetouchinterest(dummy, dropPart, 0)
+                            task.wait()
+                            firetouchinterest(dummy, dropPart, 1)
+                            dummy:Destroy()
+                        end
+                        if dropperSpeed < 20 then task.wait(0.02) end
                     end
                 end)
             end
