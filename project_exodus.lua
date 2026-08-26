@@ -1,4 +1,4 @@
--- Project Exodus | PWO | Obsidian v7 MAX AT DROP
+-- Project Exodus | PWO | Obsidian v8 ULTRA SELL FIX ALL
 -- Fixes: ore flying at high speed (stabilizer + capped velocity), dropper produce actually faster (OreLimit + DropRate + duplication)
 -- Features: Ore Speed 1-50x (stabilized), Auto TP To Sell, Dropper Produce Faster 1-50x, Ore Value Maxer 1-50x
 
@@ -89,12 +89,20 @@ end
 local function getOres(plot)
     plot = plot or getPlot()
     if not plot then return {} end
+    local out, seen = {}, {}
+    -- primary: ClientOres
     local co = plot:FindFirstChild("ClientOres")
-    if not co then return {} end
-    local out = {}
-    for _, ore in ipairs(co:GetChildren()) do
-        if ore:IsA("BasePart") then table.insert(out, ore)
-        elseif ore:IsA("Model") and ore.PrimaryPart then table.insert(out, ore.PrimaryPart) end
+    if co then
+        for _, ore in ipairs(co:GetChildren()) do
+            if ore:IsA("BasePart") and ore:GetAttribute("Worth") and not seen[ore] then seen[ore]=true table.insert(out, ore)
+            elseif ore:IsA("Model") and ore.PrimaryPart and not seen[ore.PrimaryPart] then seen[ore.PrimaryPart]=true table.insert(out, ore.PrimaryPart) end
+        end
+    end
+    -- fallback: any BasePart with Worth in entire plot (catch flying/uncached ores)
+    for _, d in ipairs(plot:GetDescendants()) do
+        if d:IsA("BasePart") and d:GetAttribute("Worth") and not seen[d] and d.Parent and d.Parent.Name ~= "Polling" then
+            seen[d]=true table.insert(out, d)
+        end
     end
     return out
 end
@@ -193,37 +201,52 @@ local function startAutoSell()
                     local batch = {}
                     for _, ore in ipairs(ores) do
                         if ore and ore.Parent and ore:GetAttribute("Worth") then
-                            -- instant tp
                             pcall(function()
-                                ore:PivotTo(furnacePart.CFrame * CFrame.new(0, ore.Size.Y/2 + 1.0, 0))
+                                -- ensure ore is not anchored and can be touched
+                                ore.Anchored = false
+                                ore.CanCollide = true
+                                -- instant tp to furnace + firetouchinterest to force server touch
+                                ore:PivotTo(furnacePart.CFrame * CFrame.new(0, ore.Size.Y/2 + 0.8, 0))
                                 ore.AssemblyLinearVelocity = Vector3.new(0,0,0)
                                 ore.AssemblyAngularVelocity = Vector3.new(0,0,0)
+                                if firetouchinterest then
+                                    firetouchinterest(ore, furnacePart, 0)
+                                    firetouchinterest(ore, furnacePart, 1)
+                                end
                             end)
                             table.insert(batch, {"Process", ore.Name, furnacePart})
                         end
                     end
                     if #batch > 0 then
-                        -- send up to 80 per batch to avoid remote size limit, split if needed
-                        for i=1, #batch, 60 do
+                        -- bypass per-second limit: send as fast as possible, parallel
+                        for i=1, #batch, 80 do
                             local chunk = {}
-                            for j=i, math.min(i+59, #batch) do table.insert(chunk, batch[j]) end
-                            pcall(function() OreActions:FireServer(chunk) end)
+                            for j=i, math.min(i+79, #batch) do table.insert(chunk, batch[j]) end
+                            task.spawn(function() pcall(function() OreActions:FireServer(chunk) end) end)
                         end
+                        -- also send again after 0.05 to catch any server drop
+                        task.delay(0.05, function()
+                            for i=1, #batch, 80 do
+                                local chunk = {}
+                                for j=i, math.min(i+79, #batch) do table.insert(chunk, batch[j]) end
+                                pcall(function() OreActions:FireServer(chunk) end)
+                            end
+                        end)
                     end
-                    task.wait(math.clamp(0.03 / math.clamp(sellSpeed,1,50), 0.001, 0.03))
+                    task.wait(math.clamp(0.02 / math.clamp(sellSpeed,1,50), 0.0005, 0.02))
                 else
                     for _, ore in ipairs(ores) do
                         if not autoSell then break end
-                        if ore and ore.Parent and ore:GetAttribute("Worth") and not ore:GetAttribute("IsTeleporting") then
+                        if ore and ore.Parent and ore:GetAttribute("Worth") then
                             pcall(function()
-                                ore:PivotTo(furnacePart.CFrame * CFrame.new(0, ore.Size.Y/2 + 1.5, 0))
+                                ore:PivotTo(furnacePart.CFrame * CFrame.new(0, ore.Size.Y/2 + 1.0, 0))
                                 ore.AssemblyLinearVelocity = Vector3.new(0,0,0)
-                                ore.AssemblyAngularVelocity = Vector3.new(0,0,0)
+                                if firetouchinterest then firetouchinterest(ore, furnacePart, 0) firetouchinterest(ore, furnacePart, 1) end
                                 OreActions:FireServer({{"Process", ore.Name, furnacePart}})
                             end)
                         end
                     end
-                    task.wait(math.clamp(0.04 / math.clamp(sellSpeed,1,50), 0.005, 0.04))
+                    task.wait(math.clamp(0.02 / math.clamp(sellSpeed,1,50), 0.002, 0.02))
                 end
             else
                 task.wait(0.15)
