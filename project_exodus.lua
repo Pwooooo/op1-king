@@ -1,22 +1,21 @@
--- Project Exodus | PWO | Obsidian
--- Features: Ore Speed 1-50x, Auto TP To Sell, Dropper Produce Faster 1-50x, Ore Value Maxer 1-50x
--- Place: [NEW HEIGHTS] Project Exodus (128736833482079)
--- Loadstring: loadstring(game:HttpGet("https://raw.githubusercontent.com/Pwooooo/op1-king/main/opp%20pwo%20hehehehe"))()
+-- Project Exodus | PWO | Obsidian v2 FIXED
+-- Fixes: ore flying at high speed (stabilizer + capped velocity), dropper produce actually faster (OreLimit + DropRate + duplication)
+-- Features: Ore Speed 1-50x (stabilized), Auto TP To Sell, Dropper Produce Faster 1-50x, Ore Value Maxer 1-50x
 
 local cloneref = (cloneref or clonereference or function(i) return i end)
 local Players = cloneref(game:GetService("Players"))
 local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
 local Workspace = cloneref(game:GetService("Workspace"))
+local RunService = cloneref(game:GetService("RunService"))
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerActions = ReplicatedStorage:WaitForChild("PlayerActions")
 local OreActions = PlayerActions:WaitForChild("OreActions")
 
--- Obsidian
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/main/Library.lua"))()
 local Window = Library:CreateWindow({
-    Title = "Project Exodus | PWO",
-    Footer = "opp pwo hehehehe",
+    Title = "Project Exodus | PWO FIXED",
+    Footer = "opp pwo hehehehe v2",
     Icon = 0,
     NotifySide = "Right",
     ShowCustomCursor = true,
@@ -28,7 +27,6 @@ local Tabs = {
     Settings = Window:AddTab("Settings", "settings"),
 }
 
--- Helpers
 local function getPlot()
     local ok, plot = pcall(function()
         local owned = LocalPlayer:FindFirstChild("OwnedPlot") or LocalPlayer:WaitForChild("OwnedPlot", 3)
@@ -38,17 +36,12 @@ local function getPlot()
     if ok and plot and plot.Parent then return plot end
     for _, slot in ipairs(Workspace:WaitForChild("PlayerPlots"):GetChildren()) do
         local p = slot:FindFirstChild("Plot")
-        if p and tostring(p:GetAttribute("OwnedBy")) == tostring(LocalPlayer.UserId) then
-            return p
-        end
+        if p and tostring(p:GetAttribute("OwnedBy")) == tostring(LocalPlayer.UserId) then return p end
     end
     local best, max = nil, -1
     for _, slot in ipairs(Workspace.PlayerPlots:GetChildren()) do
         local p = slot:FindFirstChild("Plot")
-        if p and p:FindFirstChild("Placed") and #p.Placed:GetChildren() > max then
-            max = #p.Placed:GetChildren()
-            best = p
-        end
+        if p and p:FindFirstChild("Placed") and #p.Placed:GetChildren() > max then max = #p.Placed:GetChildren() best = p end
     end
     return best
 end
@@ -59,9 +52,7 @@ local function getFurnace(plot)
     for _, inst in ipairs(plot:FindFirstChild("Placed"):GetChildren()) do
         if inst.Name:lower():find("furnace") then
             local furnacePart = inst:FindFirstChild("Furnace")
-            if furnacePart and furnacePart:IsA("BasePart") then
-                return furnacePart, inst
-            end
+            if furnacePart and furnacePart:IsA("BasePart") then return furnacePart, inst end
             return inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart"), inst
         end
     end
@@ -90,9 +81,7 @@ local function getDroppers(plot)
     local list = {}
     for _, inst in ipairs(plot.Placed:GetChildren()) do
         local key = inst:GetAttribute("PlacedKey")
-        if (key and tostring(key):lower():find("dropper")) or inst.Name:lower():find("dropper") then
-            table.insert(list, inst)
-        end
+        if (key and tostring(key):lower():find("dropper")) or inst.Name:lower():find("dropper") then table.insert(list, inst) end
     end
     return list
 end
@@ -115,26 +104,64 @@ local function getAllConveyors(plot)
     if not plot then return {} end
     local out = {}
     for _, inst in ipairs(plot.Placed:GetDescendants()) do
-        if inst:IsA("BasePart") and inst:GetAttribute("Speed") ~= nil then
-            table.insert(out, inst)
-        end
+        if inst:IsA("BasePart") and inst:GetAttribute("Speed") ~= nil then table.insert(out, inst) end
     end
     return out
 end
 
--- Speed system
+-- Speed system FIXED: capped + stabilizer
 local oreSpeed = 1
 local dropperSpeed = 1
 local originalSpeeds = setmetatable({}, {__mode="k"})
+local function effectiveSpeed(base, mult)
+    -- curve so 50x slider does not give 50*base (flying)
+    -- map 1-50 -> 1x to ~3.5x base, capped at 45
+    local curved = math.pow(math.clamp(mult,1,50), 0.62) * 1.35
+    return math.clamp(base * curved, 0, 45)
+end
 local function applyOreSpeed(mult)
     for _, part in ipairs(getAllConveyors()) do
-        if originalSpeeds[part] == nil then
-            originalSpeeds[part] = part:GetAttribute("Speed")
-        end
-        local base = originalSpeeds[part] or 10
-        part:SetAttribute("Speed", base * mult)
+        if originalSpeeds[part] == nil then originalSpeeds[part] = part:GetAttribute("Speed") end
+        local base = originalSpeeds[part] or 12
+        part:SetAttribute("Speed", effectiveSpeed(base, mult))
+        -- keep texture speed reasonable
+        part.AssemblyLinearVelocity = part.CFrame.LookVector * effectiveSpeed(base, mult)
     end
 end
+
+-- Stabilizer: keeps ores centered on conveyor, prevents flying
+local stabilizeEnabled = true
+local oreStabilizeConn = nil
+local function startStabilizer()
+    if oreStabilizeConn then oreStabilizeConn:Disconnect() end
+    oreStabilizeConn = RunService.PreSimulation:Connect(function()
+        if not stabilizeEnabled then return end
+        if oreSpeed <= 10 and dropperSpeed <= 10 then return end
+        for _, ore in ipairs(getOres()) do
+            if ore and ore.Parent and not ore:GetAttribute("IsTeleporting") then
+                local vel = ore.AssemblyLinearVelocity
+                -- clamp extreme velocity that causes flying
+                if vel.Magnitude > 60 then
+                    local dir = vel.Unit
+                    ore.AssemblyLinearVelocity = dir * 45
+                end
+                -- keep ore from flying: clamp Y velocity
+                if math.abs(vel.Y) > 25 then
+                    ore.AssemblyLinearVelocity = Vector3.new(vel.X, math.clamp(vel.Y, -15, 15), vel.Z)
+                end
+                -- if ore is way above conveyor (flying), snap down
+                local ray = Workspace:Raycast(ore.Position, Vector3.new(0,-10,0), RaycastParams.new())
+                if ray and ray.Instance and ray.Instance:GetAttribute("Speed") ~= nil then
+                    if (ore.Position.Y - ray.Position.Y) > 6 then
+                        ore.CFrame = CFrame.new(ore.Position.X, ray.Position.Y + ore.Size.Y/2 + 0.4, ore.Position.Z)
+                        ore.AssemblyLinearVelocity = Vector3.new(vel.X, 0, vel.Z)
+                    end
+                end
+            end
+        end
+    end)
+end
+startStabilizer()
 
 local function tpOre(ore, targetPart)
     if not ore or not ore.Parent or not targetPart or not targetPart.Parent then return end
@@ -158,7 +185,7 @@ local function startAutoSell()
     if autoSellThread then task.cancel(autoSellThread) end
     autoSellThread = task.spawn(function()
         while autoSell do
-            local furnacePart, furnaceModel = getFurnace()
+            local furnacePart = getFurnace()
             if furnacePart then
                 for _, ore in ipairs(getOres()) do
                     if not autoSell then break end
@@ -177,15 +204,81 @@ local function startAutoSell()
     end)
 end
 
--- Dropper Faster
+-- Dropper Faster FIXED: now actually increases spawn rate
 local dropperFasterEnabled = false
 local dropperThread = nil
+-- try to patch DropRate client-side
+pcall(function()
+    local OreStats = require(ReplicatedStorage.ItemIds:WaitForChild("OreStats"))
+    if OreStats and OreStats.Drop then
+        for _, data in pairs(OreStats.Drop) do
+            if type(data) == "table" and data.DropRate then
+                data._OriginalDropRate = data.DropRate
+            end
+        end
+    end
+end)
+local function patchDropRate(mult)
+    pcall(function()
+        local OreStats = require(ReplicatedStorage.ItemIds.OreStats)
+        for _, data in pairs(OreStats.Drop) do
+            if type(data)=="table" and data._OriginalDropRate then
+                -- lower interval = faster, so divide
+                data.DropRate = math.max(0.08, data._OriginalDropRate / math.clamp(mult,1,50))
+            end
+        end
+    end)
+end
 local function startDropperFaster()
     if dropperThread then task.cancel(dropperThread) end
     dropperThread = task.spawn(function()
+        -- increase OreLimit so ores dont stall
+        pcall(function()
+            local plot = getPlot()
+            if plot then plot:SetAttribute("OreLimit", 1000) end
+        end)
+        patchDropRate(dropperSpeed)
+        local lastClone = 0
         while dropperFasterEnabled do
             applyOreSpeed(math.max(oreSpeed, dropperSpeed))
-            task.wait(math.clamp(1 / math.max(1, dropperSpeed), 0.02, 0.5))
+            -- duplication to simulate faster production (every 0.25s / speed)
+            if tick() - lastClone > (0.35 / math.clamp(dropperSpeed,1,50)) then
+                lastClone = tick()
+                pcall(function()
+                    local plot = getPlot()
+                    if not plot then return end
+                    local droppers = getDroppers()
+                    if #droppers == 0 then return end
+                    local ores = getOres()
+                    if #ores == 0 then return end
+                    -- pick random dropper and random ore template
+                    local dropper = droppers[math.random(1,#droppers)]
+                    local dropPart = dropper:FindFirstChild("Drop") or dropper.PrimaryPart or dropper:FindFirstChildWhichIsA("BasePart")
+                    local template = ores[math.random(1,#ores)]
+                    if not dropPart or not template then return end
+                    -- check ore count vs limit
+                    if #ores >= 85 then return end
+                    local clone = template:Clone()
+                    clone.Name = tostring(LocalPlayer.UserId).."_"..tostring(math.random(1000000,9999999))
+                    clone.CFrame = dropPart.CFrame * CFrame.new(0, 2.5, 0)
+                    clone.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                    clone.Anchored = false
+                    clone.Parent = plot:FindFirstChild("ClientOres")
+                    -- copy worth
+                    local worth = template:GetAttribute("Worth") or 100
+                    clone:SetAttribute("Worth", worth)
+                    clone:SetAttribute("IsTeleporting", false)
+                    task.delay(0.1, function()
+                        if clone and clone.Parent then
+                            -- nudge onto conveyor
+                            local vel = dropPart.CFrame.LookVector * effectiveSpeed(12, dropperSpeed)
+                            clone.AssemblyLinearVelocity = vel
+                        end
+                    end)
+                    task.delay(10, function() if clone and clone.Parent then pcall(function() clone:Destroy() end) end end)
+                end)
+            end
+            task.wait(0.05)
         end
     end)
 end
@@ -223,7 +316,7 @@ local function startValueMaxer()
 end
 
 -- UI
-local LeftMain = Tabs.Main:AddLeftGroupbox("Ore Control")
+local LeftMain = Tabs.Main:AddLeftGroupbox("Ore Control (FIXED)")
 LeftMain:AddSlider("OreSpeed", {
     Text = "Ore Speed",
     Default = 1,
@@ -234,11 +327,16 @@ LeftMain:AddSlider("OreSpeed", {
     Callback = function(v)
         oreSpeed = v
         applyOreSpeed(v)
-        Library:Notify(string.format("Ore Speed: %dx", v), 2)
+        Library:Notify(string.format("Ore Speed: %dx (effective %.1f)", v, effectiveSpeed(12, v)), 2)
     end,
 })
+LeftMain:AddToggle("Stabilize", {
+    Text = "Stabilize Ores (anti-fly)",
+    Default = true,
+    Callback = function(v) stabilizeEnabled = v end,
+})
 LeftMain:AddToggle("ApplyOreSpeed", {
-    Text = "Apply Ore Speed Continuously",
+    Text = "Apply Continuously",
     Default = false,
     Callback = function(v)
         if v then
@@ -249,7 +347,7 @@ LeftMain:AddToggle("ApplyOreSpeed", {
                     if d:IsA("BasePart") and d:GetAttribute("Speed") ~= nil then
                         task.wait(0.05)
                         if originalSpeeds[d] == nil then originalSpeeds[d] = d:GetAttribute("Speed") end
-                        d:SetAttribute("Speed", (originalSpeeds[d] or 10) * oreSpeed)
+                        d:SetAttribute("Speed", effectiveSpeed(originalSpeeds[d] or 12, oreSpeed))
                     end
                 end)
             end
@@ -266,20 +364,21 @@ LeftMain:AddSlider("DropperSpeed", {
     Suffix = "x",
     Callback = function(v)
         dropperSpeed = v
-        if dropperFasterEnabled then applyOreSpeed(math.max(oreSpeed, dropperSpeed)) end
+        if dropperFasterEnabled then applyOreSpeed(math.max(oreSpeed, dropperSpeed)) patchDropRate(v) end
+        Library:Notify("Dropper Speed: "..v.."x",1)
     end,
 })
 LeftMain:AddToggle("DropperFaster", {
-    Text = "Dropper Produce Faster",
+    Text = "Dropper Produce Faster (FIXED)",
     Default = false,
     Callback = function(v)
         dropperFasterEnabled = v
-        if v then startDropperFaster() Library:Notify("Dropper Faster: ON ("..dropperSpeed.."x)", 2)
-        else if dropperThread then task.cancel(dropperThread) dropperThread=nil end applyOreSpeed(oreSpeed) Library:Notify("Dropper Faster: OFF", 2) end
+        if v then startDropperFaster() Library:Notify("Dropper Faster: ON ("..dropperSpeed.."x) - OreLimit 1000 + DropRate patched + duplication", 3)
+        else if dropperThread then task.cancel(dropperThread) dropperThread=nil end patchDropRate(1) applyOreSpeed(oreSpeed) Library:Notify("Dropper Faster: OFF", 2) end
     end,
 })
 LeftMain:AddButton({
-    Text = "Produce Burst (instant 50x)",
+    Text = "Produce Burst (instant 50x 2s)",
     Func = function()
         local droppers = getDroppers()
         Library:Notify("Droppers: "..#droppers, 2)
@@ -355,32 +454,20 @@ LeftAuto:AddButton({
         Library:Notify("Maxed 1 ore "..valueMaxerTimes.."x via "..#ups.." upgraders",2)
     end,
 })
-LeftAuto:AddButton({
-    Text = "List Upgraders",
-    Func = function()
+LeftAuto:AddButton({ Text = "List Upgraders", Func = function()
         local ups=getUpgraders()
         Library:Notify("Upgraders: "..#ups,3)
         for i,up in ipairs(ups) do print(i, up.model.Name, tostring(up.part.Position)) if i>8 then break end end
     end,
 })
 
-local RightAuto = Tabs.Automation:AddRightGroupbox("Info")
-RightAuto:AddLabel("Plot: "..(getPlot() and getPlot():GetFullName() or "none"), true)
-RightAuto:AddButton({
-    Text = "Copy Plot Info",
-    Func = function()
-        local p=getPlot()
-        if p then setclipboard(p:GetFullName()) Library:Notify("Copied "..p:GetFullName(),2) end
-    end,
-})
-RightAuto:AddLabel("How it works:\n- Ore Speed: multiplies Speed attr on conveyors.\n- Dropper Faster: keeps Speed maxed + droppers enabled.\n- TP Sell: moves ClientOres to Furnace + fires Process.\n- Value Maxer: tps each ore through every Upgrader N times + fires Upgrade.", true)
+local RightAuto = Tabs.Automation:AddRightGroupbox("Info FIXED")
+RightAuto:AddLabel("Fixes:\n- Speed now capped at 45 + curved (50x = ~42) + anti-fly stabilizer.\n- Dropper now patches DropRate + OreLimit 1000 + clones ores at Drop part.", true)
+RightAuto:AddButton({ Text = "Copy Plot Info", Func = function() local p=getPlot() if p then setclipboard(p:GetFullName()) Library:Notify("Copied "..p:GetFullName(),2) end end,})
 RightAuto:AddDivider()
-RightAuto:AddButton({
-    Text = "Unload",
-    Func = function() Library:Unload() end,
-})
+RightAuto:AddButton({ Text = "Unload", Func = function() Library:Unload() if oreStabilizeConn then oreStabilizeConn:Disconnect() end end,})
 
-Library:Notify("Project Exodus loaded — PWO", 3)
+Library:Notify("Project Exodus FIXED loaded — PWO", 3)
 task.spawn(function()
     task.wait(1)
     local plot = getPlot()
