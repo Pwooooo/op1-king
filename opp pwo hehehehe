@@ -1,4 +1,4 @@
--- Project Exodus | PWO | Obsidian v5 PERSISTENT DROPPER
+-- Project Exodus | PWO | Obsidian v6 ULTRA SELL BYPASS
 -- Fixes: ore flying at high speed (stabilizer + capped velocity), dropper produce actually faster (OreLimit + DropRate + duplication)
 -- Features: Ore Speed 1-50x (stabilized), Auto TP To Sell, Dropper Produce Faster 1-50x, Ore Value Maxer 1-50x
 
@@ -188,19 +188,46 @@ local function startAutoSell()
             local furnacePart = getFurnace()
             if furnacePart then
                 local ores = getOres()
-                for _, ore in ipairs(ores) do
-                    if not autoSell then break end
-                    if ore and ore.Parent and ore:GetAttribute("Worth") and not ore:GetAttribute("IsTeleporting") then
-                        pcall(function()
-                            ore:PivotTo(furnacePart.CFrame * CFrame.new(0, ore.Size.Y/2 + 1.5, 0))
-                            ore.AssemblyLinearVelocity = Vector3.new(0,0,0)
-                            ore.AssemblyAngularVelocity = Vector3.new(0,0,0)
-                            OreActions:FireServer({{"Process", ore.Name, furnacePart}})
-                        end)
+                if sellLimitBypass then
+                    -- ULTRA: bulk fire all ores in ONE FireServer to bypass per-second limit
+                    local batch = {}
+                    for _, ore in ipairs(ores) do
+                        if ore and ore.Parent and ore:GetAttribute("Worth") then
+                            -- instant tp
+                            pcall(function()
+                                ore:PivotTo(furnacePart.CFrame * CFrame.new(0, ore.Size.Y/2 + 1.0, 0))
+                                ore.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                                ore.AssemblyAngularVelocity = Vector3.new(0,0,0)
+                            end)
+                            table.insert(batch, {"Process", ore.Name, furnacePart})
+                        end
                     end
+                    if #batch > 0 then
+                        -- send up to 80 per batch to avoid remote size limit, split if needed
+                        for i=1, #batch, 60 do
+                            local chunk = {}
+                            for j=i, math.min(i+59, #batch) do table.insert(chunk, batch[j]) end
+                            pcall(function() OreActions:FireServer(chunk) end)
+                        end
+                    end
+                    task.wait(math.clamp(0.03 / math.clamp(sellSpeed,1,50), 0.001, 0.03))
+                else
+                    for _, ore in ipairs(ores) do
+                        if not autoSell then break end
+                        if ore and ore.Parent and ore:GetAttribute("Worth") and not ore:GetAttribute("IsTeleporting") then
+                            pcall(function()
+                                ore:PivotTo(furnacePart.CFrame * CFrame.new(0, ore.Size.Y/2 + 1.5, 0))
+                                ore.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                                ore.AssemblyAngularVelocity = Vector3.new(0,0,0)
+                                OreActions:FireServer({{"Process", ore.Name, furnacePart}})
+                            end)
+                        end
+                    end
+                    task.wait(math.clamp(0.04 / math.clamp(sellSpeed,1,50), 0.005, 0.04))
                 end
+            else
+                task.wait(0.15)
             end
-            task.wait(math.clamp(0.04 / math.clamp(sellSpeed,1,50), 0.005, 0.04))
         end
     end)
 end
@@ -304,6 +331,7 @@ end
 local valueMaxerEnabled = false
 local valueMaxerTimes = 10
 local sellSpeed = 50
+local sellLimitBypass = false
 local valueMaxerThread = nil
 local function startValueMaxer()
     if valueMaxerThread then task.cancel(valueMaxerThread) end
@@ -414,6 +442,20 @@ RightMain:AddSlider("SellSpeed", {
     Rounding = 0,
     Suffix = "x",
     Callback = function(v) sellSpeed = v end,
+})
+RightMain:AddToggle("SellBypass", {
+    Text = "Remove Sell Limit (Unlimited/sec)",
+    Default = false,
+    Tooltip = "Bypasses per-second sell limit by bulk FireServer (60 per call) + instant TP. No delay.",
+    Callback = function(v)
+        sellLimitBypass = v
+        if v then
+            sellSpeed = 50
+            Library:Notify("Sell Limit: REMOVED - bulk 60/0.001s", 3)
+        else
+            Library:Notify("Sell Limit: ON (normal)", 2)
+        end
+    end,
 })
 RightMain:AddToggle("AutoSell", {
     Text = "Auto TP To Sell (Furnace)",
