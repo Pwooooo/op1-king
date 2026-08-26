@@ -1,4 +1,4 @@
--- Project Exodus | PWO | Obsidian v11 REAL DROPPER FIX - upgrade to Ruby/Max ore + Worth boost (no place)
+-- Project Exodus | PWO | Obsidian v12 REAL RATE - recycle ores to dropper for true more per sec
 -- Fixes: ore flying at high speed (stabilizer + capped velocity), dropper produce actually faster (OreLimit + DropRate + duplication)
 -- Features: Ore Speed 1-50x (stabilized), Auto TP To Sell, Dropper Produce Faster 1-50x, Ore Value Maxer 1-50x
 
@@ -345,6 +345,32 @@ local function startDropperFaster()
                     local Remotes = ReplicatedStorage:WaitForChild("Remotes")
                     local SetDroppersEnabled = Remotes:FindFirstChild("SetDroppersEnabled")
                     if SetDroppersEnabled then SetDroppersEnabled:FireServer(true) end
+                end)
+            end
+            -- REAL more ores per sec: recycle sold ores back to dropper (server counts because same valid ore, just looped)
+            if tick() - lastClone > (0.18 / math.clamp(dropperSpeed,1,50)) then
+                lastClone = tick()
+                pcall(function()
+                    local plot = getPlot()
+                    if not plot then return end
+                    local droppers = getDroppers()
+                    local ores = getOres()
+                    if #droppers == 0 or #ores == 0 then return end
+                    local ore = ores[math.random(1, #ores)]
+                    if not ore or not ore.Parent then return end
+                    local furnacePart = getFurnace()
+                    if not furnacePart then return end
+                    local distToFurnace = (ore.Position - furnacePart.Position).Magnitude
+                    if distToFurnace < 15 or math.random() < 0.35 then
+                        local dropper = droppers[math.random(1, #droppers)]
+                        local dropPart = dropper:FindFirstChild("Drop") or dropper.PrimaryPart
+                        if not dropPart then return end
+                        ore:PivotTo(CFrame.new(dropPart.Position + Vector3.new(0, 2.5, 0)))
+                        ore.AssemblyLinearVelocity = Vector3.new(0, -4, 0)
+                        local baseWorth = ore:GetAttribute("BaseWorth") or ore:GetAttribute("Worth") or 100
+                        ore:SetAttribute("Worth", math.floor(baseWorth * 1.5))
+                        ore:SetAttribute("IsTeleporting", false)
+                    end
                 end)
             end
             -- duplication to simulate faster production
