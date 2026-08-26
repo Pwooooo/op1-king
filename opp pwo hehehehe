@@ -1,4 +1,4 @@
--- Project Exodus | PWO | Obsidian v4 FIXED DIRECTION
+-- Project Exodus | PWO | Obsidian v5 PERSISTENT DROPPER
 -- Fixes: ore flying at high speed (stabilizer + capped velocity), dropper produce actually faster (OreLimit + DropRate + duplication)
 -- Features: Ore Speed 1-50x (stabilized), Auto TP To Sell, Dropper Produce Faster 1-50x, Ore Value Maxer 1-50x
 
@@ -233,17 +233,17 @@ end
 local function startDropperFaster()
     if dropperThread then task.cancel(dropperThread) end
     dropperThread = task.spawn(function()
-        -- increase OreLimit so ores dont stall
-        pcall(function()
-            local plot = getPlot()
-            if plot then plot:SetAttribute("OreLimit", 1000) end
-        end)
-        patchDropRate(dropperSpeed)
         local lastClone = 0
         while dropperFasterEnabled do
+            -- re-apply every tick so server resets dont stick
+            pcall(function()
+                local plot = getPlot()
+                if plot then plot:SetAttribute("OreLimit", 1000) end
+            end)
+            patchDropRate(dropperSpeed)
             applyOreSpeed(math.max(oreSpeed, dropperSpeed))
-            -- duplication to simulate faster production (every 0.25s / speed)
-            if tick() - lastClone > (0.35 / math.clamp(dropperSpeed,1,50)) then
+            -- duplication to simulate faster production
+            if tick() - lastClone > (0.28 / math.clamp(dropperSpeed,1,50)) then
                 lastClone = tick()
                 pcall(function()
                     local plot = getPlot()
@@ -252,12 +252,13 @@ local function startDropperFaster()
                     if #droppers == 0 then return end
                     local ores = getOres()
                     if #ores == 0 then return end
-                    -- pick random dropper and random ore template
                     local dropper = droppers[math.random(1,#droppers)]
                     local dropPart = dropper:FindFirstChild("Drop") or dropper.PrimaryPart or dropper:FindFirstChildWhichIsA("BasePart")
                     local template = ores[math.random(1,#ores)]
                     if not dropPart or not template then return end
-                    if #ores >= 90 then return end
+                    -- use OreLimit not 90
+                    local oreLimit = plot:GetAttribute("OreLimit") or 1000
+                    if #ores >= math.clamp(oreLimit - 5, 50, 995) then return end
                     -- find conveyor direction near dropper for proper placement
                     local conveyorDir = nil
                     local bestDist = math.huge
