@@ -1,4 +1,4 @@
--- Project Exodus | PWO | Obsidian v3 ULTRA SELL
+-- Project Exodus | PWO | Obsidian v4 FIXED DIRECTION
 -- Fixes: ore flying at high speed (stabilizer + capped velocity), dropper produce actually faster (OreLimit + DropRate + duplication)
 -- Features: Ore Speed 1-50x (stabilized), Auto TP To Sell, Dropper Produce Faster 1-50x, Ore Value Maxer 1-50x
 
@@ -257,23 +257,38 @@ local function startDropperFaster()
                     local dropPart = dropper:FindFirstChild("Drop") or dropper.PrimaryPart or dropper:FindFirstChildWhichIsA("BasePart")
                     local template = ores[math.random(1,#ores)]
                     if not dropPart or not template then return end
-                    -- check ore count vs limit
-                    if #ores >= 85 then return end
+                    if #ores >= 90 then return end
+                    -- find conveyor direction near dropper for proper placement
+                    local conveyorDir = nil
+                    local bestDist = math.huge
+                    for _, part in ipairs(getAllConveyors(plot)) do
+                        local d = (part.Position - dropPart.Position).Magnitude
+                        if d < bestDist and d < 20 then
+                            bestDist = d
+                            conveyorDir = part.CFrame.LookVector
+                        end
+                    end
+                    if not conveyorDir then conveyorDir = Vector3.new(0,0,1) end
                     local clone = template:Clone()
                     clone.Name = tostring(LocalPlayer.UserId).."_"..tostring(math.random(1000000,9999999))
-                    clone.CFrame = dropPart.CFrame * CFrame.new(0, 2.5, 0)
-                    clone.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                    -- place normally: directly above Drop part, same orientation as template, not rotated weirdly
+                    clone.CFrame = CFrame.new(dropPart.Position + Vector3.new(0, 2.2, 0)) * CFrame.Angles(0, math.rad(math.random(0,360)), 0)
+                    clone.AssemblyLinearVelocity = Vector3.new(0, -3, 0)
+                    clone.AssemblyAngularVelocity = Vector3.new(0,0,0)
                     clone.Anchored = false
+                    clone.CanCollide = true
                     clone.Parent = plot:FindFirstChild("ClientOres")
-                    -- copy worth
                     local worth = template:GetAttribute("Worth") or 100
                     clone:SetAttribute("Worth", worth)
                     clone:SetAttribute("IsTeleporting", false)
-                    task.delay(0.1, function()
-                        if clone and clone.Parent then
-                            -- nudge onto conveyor
-                            local vel = dropPart.CFrame.LookVector * effectiveSpeed(12, dropperSpeed)
-                            clone.AssemblyLinearVelocity = vel
+                    -- copy other attributes from template
+                    for k,v in pairs(template:GetAttributes()) do
+                        if k ~= "IsTeleporting" then pcall(function() clone:SetAttribute(k,v) end) end
+                    end
+                    task.delay(0.12, function()
+                        if clone and clone.Parent and conveyorDir then
+                            -- now push onto conveyor direction gently, not flying
+                            clone.AssemblyLinearVelocity = conveyorDir * math.clamp(effectiveSpeed(12, math.min(dropperSpeed, 15)), 8, 28)
                         end
                     end)
                     task.delay(10, function() if clone and clone.Parent then pcall(function() clone:Destroy() end) end end)
