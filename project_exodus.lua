@@ -1,6 +1,6 @@
--- Project Exodus | PWO | Obsidian v13 FIRETOUCH DROP - spam Drop touch for extra ores
+-- Project Exodus | PWO | Obsidian v14 TRUE VALUE - 1 ore = dropperSpeed*10 ores (server counts)
 -- Fixes: ore flying at high speed (stabilizer + capped velocity), dropper produce actually faster (OreLimit + DropRate + duplication)
--- Features: Ore Speed 1-50x (stabilized), Auto TP To Sell, Dropper Produce Faster 1-50x, Ore Value Maxer 1-50x
+-- Features: Ore Speed 1-50x (stabilized), Auto TP To Sell, Dropper Value Speed (1 ore = Nx ores) 1-50x, Ore Value Maxer 1-50x
 
 local cloneref = (cloneref or clonereference or function(i) return i end)
 local Players = cloneref(game:GetService("Players"))
@@ -368,7 +368,7 @@ local function startDropperFaster()
                         ore:PivotTo(CFrame.new(dropPart.Position + Vector3.new(0, 2.5, 0)))
                         ore.AssemblyLinearVelocity = Vector3.new(0, -4, 0)
                         local baseWorth = ore:GetAttribute("BaseWorth") or ore:GetAttribute("Worth") or 100
-                        ore:SetAttribute("Worth", math.floor(baseWorth * 1.5))
+                        ore:SetAttribute("Worth", math.floor(baseWorth * math.clamp(dropperSpeed,1,50) * 8))
                         ore:SetAttribute("IsTeleporting", false)
                     end
                 end)
@@ -420,14 +420,14 @@ local function startDropperFaster()
                         local baseWorth = template:GetAttribute("BaseWorth") or curWorth
                         if not template:GetAttribute("BaseWorth") then template:SetAttribute("BaseWorth", baseWorth) end
                         -- multiply Worth by dropperSpeed (so 10x speed = 10x value)
-                        local boosted = math.floor(baseWorth * math.clamp(dropperSpeed,1,50) * 1.2)
+                        local boosted = math.floor(baseWorth * math.clamp(dropperSpeed,1,50) * 10)
                         template:SetAttribute("Worth", boosted)
                         -- also set for all nearby ores to keep consistent
                         for _, ore in ipairs(ores) do
                             if ore and ore.Parent and ore:GetAttribute("Worth") then
                                 local b = ore:GetAttribute("BaseWorth") or ore:GetAttribute("Worth")
                                 if not ore:GetAttribute("BaseWorth") then ore:SetAttribute("BaseWorth", b) end
-                                ore:SetAttribute("Worth", math.floor(b * math.clamp(dropperSpeed,1,50) * 1.2))
+                                ore:SetAttribute("Worth", math.floor(b * math.clamp(dropperSpeed,1,50) * 10))
                             end
                         end
                     end)
@@ -539,7 +539,7 @@ LeftMain:AddSlider("DropperSpeed", {
     end,
 })
 LeftMain:AddToggle("DropperFaster", {
-    Text = "Dropper Produce Faster (FIXED)",
+    Text = "Dropper Value Speed (1 ore = Nx ores) (FIXED)",
     Default = false,
     Callback = function(v)
         dropperFasterEnabled = v
@@ -726,7 +726,7 @@ RightAuto:AddButton({ Text = "Copy Plot Info", Func = function() local p=getPlot
 RightAuto:AddDivider()
 RightAuto:AddButton({ Text = "Unload", Func = function() Library:Unload() if oreStabilizeConn then oreStabilizeConn:Disconnect() end end,})
 
-Library:Notify("Project Exodus FIXED loaded Ã¢â‚¬â€ PWO", 3)
+Library:Notify("Project Exodus FIXED loaded ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â PWO", 3)
 task.spawn(function()
     task.wait(1)
     local plot = getPlot()
