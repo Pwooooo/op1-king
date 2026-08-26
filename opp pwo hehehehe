@@ -1,4 +1,4 @@
--- Project Exodus | PWO | Obsidian v2 FIXED
+-- Project Exodus | PWO | Obsidian v3 ULTRA SELL
 -- Fixes: ore flying at high speed (stabilizer + capped velocity), dropper produce actually faster (OreLimit + DropRate + duplication)
 -- Features: Ore Speed 1-50x (stabilized), Auto TP To Sell, Dropper Produce Faster 1-50x, Ore Value Maxer 1-50x
 
@@ -14,8 +14,8 @@ local OreActions = PlayerActions:WaitForChild("OreActions")
 
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/main/Library.lua"))()
 local Window = Library:CreateWindow({
-    Title = "Project Exodus | PWO FIXED",
-    Footer = "opp pwo hehehehe v2",
+    Title = "Project Exodus | PWO ULTRA",
+    Footer = "opp pwo hehehehe v3 ultra sell",
     Icon = 0,
     NotifySide = "Right",
     ShowCustomCursor = true,
@@ -187,19 +187,20 @@ local function startAutoSell()
         while autoSell do
             local furnacePart = getFurnace()
             if furnacePart then
-                for _, ore in ipairs(getOres()) do
+                local ores = getOres()
+                for _, ore in ipairs(ores) do
                     if not autoSell then break end
-                    if ore and ore.Parent and ore:GetAttribute("Worth") then
+                    if ore and ore.Parent and ore:GetAttribute("Worth") and not ore:GetAttribute("IsTeleporting") then
                         pcall(function()
-                            ore.CFrame = furnacePart.CFrame * CFrame.new(0, ore.Size.Y/2 + 1.5, 0)
+                            ore:PivotTo(furnacePart.CFrame * CFrame.new(0, ore.Size.Y/2 + 1.5, 0))
                             ore.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                            ore.AssemblyAngularVelocity = Vector3.new(0,0,0)
                             OreActions:FireServer({{"Process", ore.Name, furnacePart}})
                         end)
-                        task.wait(0.02)
                     end
                 end
             end
-            task.wait(0.15)
+            task.wait(math.clamp(0.04 / math.clamp(sellSpeed,1,50), 0.005, 0.04))
         end
     end)
 end
@@ -286,6 +287,7 @@ end
 -- Value Maxer
 local valueMaxerEnabled = false
 local valueMaxerTimes = 10
+local sellSpeed = 50
 local valueMaxerThread = nil
 local function startValueMaxer()
     if valueMaxerThread then task.cancel(valueMaxerThread) end
@@ -388,6 +390,15 @@ LeftMain:AddButton({
 })
 
 local RightMain = Tabs.Main:AddRightGroupbox("Sell")
+RightMain:AddSlider("SellSpeed", {
+    Text = "Sell TP Speed",
+    Default = 50,
+    Min = 1,
+    Max = 50,
+    Rounding = 0,
+    Suffix = "x",
+    Callback = function(v) sellSpeed = v end,
+})
 RightMain:AddToggle("AutoSell", {
     Text = "Auto TP To Sell (Furnace)",
     Default = false,
@@ -467,7 +478,7 @@ RightAuto:AddButton({ Text = "Copy Plot Info", Func = function() local p=getPlot
 RightAuto:AddDivider()
 RightAuto:AddButton({ Text = "Unload", Func = function() Library:Unload() if oreStabilizeConn then oreStabilizeConn:Disconnect() end end,})
 
-Library:Notify("Project Exodus FIXED loaded — PWO", 3)
+Library:Notify("Project Exodus FIXED loaded â€” PWO", 3)
 task.spawn(function()
     task.wait(1)
     local plot = getPlot()
