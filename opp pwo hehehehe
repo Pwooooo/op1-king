@@ -1,4 +1,4 @@
--- Project Exodus | PWO | Obsidian v10 REAL DROPPER SPAWN - auto-place best dropper
+-- Project Exodus | PWO | Obsidian v11 REAL DROPPER FIX - upgrade to Ruby/Max ore + Worth boost (no place)
 -- Fixes: ore flying at high speed (stabilizer + capped velocity), dropper produce actually faster (OreLimit + DropRate + duplication)
 -- Features: Ore Speed 1-50x (stabilized), Auto TP To Sell, Dropper Produce Faster 1-50x, Ore Value Maxer 1-50x
 
@@ -85,70 +85,50 @@ local function getDroppers(plot)
     end
     return list
 end
-local function getBestDropperName()
-    -- find best dropper from placed droppers by OreStats value
-    local bestName, bestValue = "Stone Dropper", 0
+local function getBestOreType()
+    local bestOre, bestVal = "Ruby", 0
     pcall(function()
         local OreStats = require(ReplicatedStorage.ItemIds:WaitForChild("OreStats"))
-        for _, inst in ipairs(getDroppers()) do
-            local oreType = inst:GetAttribute("OreDrop") or inst:GetAttribute("Ore") or "Stone"
-            -- try to find drop data for this ore
-            local data = OreStats.Drop[oreType] or OreStats.Drop[inst.Name:gsub(" Dropper",""):gsub("%(Evolved%) ",""):gsub("^%s+","")]
-            local val = 0
-            if data and data.Value then val = data.Value
-            else
-                -- fallback: use name length as proxy for tier (evolved is better)
-                if inst.Name:find("Void") then val = 5000
-                elseif inst.Name:find("Spectryll") then val = 3000
-                elseif inst.Name:find("Evolved") then val = 2000
-                else val = 100 end
-            end
-            if val > bestValue then
-                bestValue = val
-                -- try to map oreType to dropper name in Buildable
-                local candidate = oreType .. " Dropper"
-                if ReplicatedStorage.Buildable:FindFirstChild(candidate) then bestName = candidate
-                elseif ReplicatedStorage.Buildable:FindFirstChild(inst.Name) then bestName = inst.Name
-                else bestName = inst.Name end
-            end
-        end
-        -- if no placed droppers, try most expensive buildable dropper we can afford
-        if bestValue == 0 then
-            for _, m in ipairs(ReplicatedStorage.Buildable:GetChildren()) do
-                if m.Name:lower():find("dropper") then
-                    -- check if we own it or can place (try)
-                    bestName = m.Name
-                    break
-                end
+        for oreName, data in pairs(OreStats.Drop) do
+            if type(data)=="table" and data.Value and data.Value > bestVal then
+                bestVal = data.Value
+                bestOre = oreName
             end
         end
     end)
-    return bestName
+    -- fallback check for evolved ores not in Drop table
+    if bestVal < 3000 then
+        -- Void etc may be higher
+        pcall(function()
+            local OreStats = require(ReplicatedStorage.ItemIds:WaitForChild("OreStats"))
+            for k,v in pairs(OreStats) do
+                if type(v)=="table" and v.Value and v.Value > bestVal then
+                    bestVal = v.Value
+                    bestOre = k
+                end
+            end
+        end)
+    end
+    return bestOre, bestVal
 end
-local function tryPlaceDropper(name)
-    local plot = getPlot()
-    if not plot then return false, "no plot" end
-    local Remotes = ReplicatedStorage:WaitForChild("Remotes")
-    local PlaceBuildable = Remotes:WaitForChild("PlaceBuildable")
-    -- find plot CFrame and random free pos
-    local baseCFrame = plot.CFrame
-    local baseSize = plot:GetAttribute("BasePlotSize") or Vector3.new(60,1,60)
-    if type(baseSize) == "string" then
-        local x,y,z = baseSize:match("([^,]+),%s*([^,]+),%s*([^,]+)")
-        baseSize = Vector3.new(tonumber(x) or 60, tonumber(y) or 1, tonumber(z) or 60)
-    end
-    -- try up to 5 random positions
-    for attempt=1, 5 do
-        local offsetX = math.random(-math.floor(baseSize.X/2)+5, math.floor(baseSize.X/2)-5)
-        local offsetZ = math.random(-math.floor(baseSize.Z/2)+5, math.floor(baseSize.Z/2)-5)
-        local cframe = baseCFrame * CFrame.new(offsetX, 2, offsetZ)
-        local ok, res = pcall(function() return PlaceBuildable:InvokeServer(name, cframe, 0, 0) end)
-        if ok and type(res)=="table" and res.Placed then
-            return true, res
+local function upgradeDroppersToBestOre()
+    local bestOre, bestVal = getBestOreType()
+    local count = 0
+    for _, dropper in ipairs(getDroppers()) do
+        local dropPart = dropper:FindFirstChild("Drop")
+        if dropPart then
+            if dropPart:GetAttribute("Ore") ~= bestOre then
+                dropPart:SetAttribute("Ore", bestOre)
+                count += 1
+            end
         end
-        task.wait(0.05)
+        if dropper:GetAttribute("OreDrop") ~= bestOre then
+            dropper:SetAttribute("OreDrop", bestOre)
+            count += 1
+        end
+        -- also try serverkey? no
     end
-    return false, "no pos"
+    return count, bestOre
 end
 
 local function getOres(plot)
@@ -348,14 +328,8 @@ end
 local function startDropperFaster()
     if dropperThread then task.cancel(dropperThread) end
     dropperThread = task.spawn(function()
+        local lastUpgrade = 0
         local lastClone = 0
-        local lastPlace = 0
-        -- ensure we have best dropper name cached
-        local bestDropperName = getBestDropperName()
-        task.spawn(function()
-            task.wait(1)
-            bestDropperName = getBestDropperName()
-        end)
         while dropperFasterEnabled do
             pcall(function()
                 local plot = getPlot()
@@ -364,14 +338,13 @@ local function startDropperFaster()
             patchDropRate(dropperSpeed)
             applyOreSpeed(math.max(oreSpeed, dropperSpeed))
             -- auto-place best dropper every 1.5 / speed seconds to actually increase production (server counted)
-            if tick() - lastPlace > (1.8 / math.clamp(dropperSpeed,1,50)) then
-                lastPlace = tick()
-                task.spawn(function()
-                    local ok, res = tryPlaceDropper(bestDropperName)
-                    if ok then
-                        -- refresh best
-                        bestDropperName = getBestDropperName()
-                    end
+            if tick() - lastUpgrade > 1.0 then
+                lastUpgrade = tick()
+                task.spawn(function() upgradeDroppersToBestOre() end)
+                pcall(function()
+                    local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+                    local SetDroppersEnabled = Remotes:FindFirstChild("SetDroppersEnabled")
+                    if SetDroppersEnabled then SetDroppersEnabled:FireServer(true) end
                 end)
             end
             -- duplication to simulate faster production
@@ -705,7 +678,7 @@ RightAuto:AddButton({ Text = "Copy Plot Info", Func = function() local p=getPlot
 RightAuto:AddDivider()
 RightAuto:AddButton({ Text = "Unload", Func = function() Library:Unload() if oreStabilizeConn then oreStabilizeConn:Disconnect() end end,})
 
-Library:Notify("Project Exodus FIXED loaded â€” PWO", 3)
+Library:Notify("Project Exodus FIXED loaded Ã¢â‚¬â€ PWO", 3)
 task.spawn(function()
     task.wait(1)
     local plot = getPlot()
