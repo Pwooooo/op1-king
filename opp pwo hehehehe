@@ -1,4 +1,4 @@
--- Project Exodus | PWO | Obsidian v8 ULTRA SELL FIX ALL
+-- Project Exodus | PWO | Obsidian v9 COUNT FIX - Worth boost not fake clones
 -- Fixes: ore flying at high speed (stabilizer + capped velocity), dropper produce actually faster (OreLimit + DropRate + duplication)
 -- Features: Ore Speed 1-50x (stabilized), Auto TP To Sell, Dropper Produce Faster 1-50x, Ore Value Maxer 1-50x
 
@@ -309,37 +309,35 @@ local function startDropperFaster()
                     -- use OreLimit not 90
                     local oreLimit = plot:GetAttribute("OreLimit") or 1000
                     if #ores >= math.clamp(oreLimit - 5, 50, 995) then return end
-                    -- find conveyor direction near dropper for proper placement
-                    local conveyorDir = nil
-                    local bestDist = math.huge
-                    for _, part in ipairs(getAllConveyors(plot)) do
-                        local d = (part.Position - dropPart.Position).Magnitude
-                        if d < bestDist and d < 20 then
-                            bestDist = d
-                            conveyorDir = part.CFrame.LookVector
+                    -- FIX: instead of cloning with random name (not counted by server), boost Worth of template so each ore counts as many
+                    -- server only counts ores with valid BoolValue names, so fake clones with random names are ignored
+                    -- boost Worth so 1 ore = dropperSpeed ores
+                    pcall(function()
+                        local curWorth = template:GetAttribute("Worth") or 100
+                        local baseWorth = template:GetAttribute("BaseWorth") or curWorth
+                        if not template:GetAttribute("BaseWorth") then template:SetAttribute("BaseWorth", baseWorth) end
+                        -- multiply Worth by dropperSpeed (so 10x speed = 10x value)
+                        local boosted = math.floor(baseWorth * math.clamp(dropperSpeed,1,50) * 1.2)
+                        template:SetAttribute("Worth", boosted)
+                        -- also set for all nearby ores to keep consistent
+                        for _, ore in ipairs(ores) do
+                            if ore and ore.Parent and ore:GetAttribute("Worth") then
+                                local b = ore:GetAttribute("BaseWorth") or ore:GetAttribute("Worth")
+                                if not ore:GetAttribute("BaseWorth") then ore:SetAttribute("BaseWorth", b) end
+                                ore:SetAttribute("Worth", math.floor(b * math.clamp(dropperSpeed,1,50) * 1.2))
+                            end
                         end
-                    end
-                    if not conveyorDir then conveyorDir = Vector3.new(0,0,1) end
-                    local clone = template:Clone()
-                    clone.Name = tostring(LocalPlayer.UserId).."_"..tostring(math.random(1000000,9999999))
-                    -- place normally: directly above Drop part, same orientation as template, not rotated weirdly
-                    clone.CFrame = CFrame.new(dropPart.Position + Vector3.new(0, 2.2, 0)) * CFrame.Angles(0, math.rad(math.random(0,360)), 0)
-                    clone.AssemblyLinearVelocity = Vector3.new(0, -3, 0)
-                    clone.AssemblyAngularVelocity = Vector3.new(0,0,0)
-                    clone.Anchored = false
-                    clone.CanCollide = true
-                    clone.Parent = plot:FindFirstChild("ClientOres")
-                    local worth = template:GetAttribute("Worth") or 100
-                    clone:SetAttribute("Worth", worth)
-                    clone:SetAttribute("IsTeleporting", false)
-                    -- copy other attributes from template
-                    for k,v in pairs(template:GetAttributes()) do
-                        if k ~= "IsTeleporting" then pcall(function() clone:SetAttribute(k,v) end) end
-                    end
-                    task.delay(0.12, function()
-                        if clone and clone.Parent and conveyorDir then
-                            -- now push onto conveyor direction gently, not flying
-                            clone.AssemblyLinearVelocity = conveyorDir * math.clamp(effectiveSpeed(12, math.min(dropperSpeed, 15)), 8, 28)
+                    end)
+                    -- still do a gentle nudge to keep ores moving, but dont clone
+                    pcall(function()
+                        local conveyorDir = nil
+                        local bestDist = math.huge
+                        for _, part in ipairs(getAllConveyors(plot)) do
+                            local d = (part.Position - dropPart.Position).Magnitude
+                            if d < bestDist and d < 20 then bestDist=d conveyorDir=part.CFrame.LookVector end
+                        end
+                        if conveyorDir and template and template.Parent then
+                            template.AssemblyLinearVelocity = conveyorDir * math.clamp(effectiveSpeed(12, math.min(dropperSpeed, 18)), 8, 32)
                         end
                     end)
                     task.delay(10, function() if clone and clone.Parent then pcall(function() clone:Destroy() end) end end)
