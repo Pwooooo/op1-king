@@ -1,4 +1,4 @@
--- Project Exodus | PWO | Obsidian v6 ULTRA SELL BYPASS
+-- Project Exodus | PWO | Obsidian v7 MAX AT DROP
 -- Fixes: ore flying at high speed (stabilizer + capped velocity), dropper produce actually faster (OreLimit + DropRate + duplication)
 -- Features: Ore Speed 1-50x (stabilized), Auto TP To Sell, Dropper Produce Faster 1-50x, Ore Value Maxer 1-50x
 
@@ -523,12 +523,78 @@ LeftAuto:AddButton({
         Library:Notify("Maxed 1 ore "..valueMaxerTimes.."x via "..#ups.." upgraders",2)
     end,
 })
+LeftAuto:AddToggle("MaxAtDrop", {
+    Text = "Max Value At Drop (instant)",
+    Default = false,
+    Tooltip = "New ores spawn already maxed - instantly runs through all upgraders at Drop point",
+    Callback = function(v)
+        setMaxAtDrop(v)
+        if v then Library:Notify("Max At Drop: ON - new ores will be max value", 3) else Library:Notify("Max At Drop: OFF",2) end
+    end,
+})
+LeftAuto:AddButton({ Text = "Max ALL Existing Ores NOW", Func = function()
+        local ores = getOres()
+        local n=0
+        for _, ore in ipairs(ores) do maxOreInstant(ore) n+=1 task.wait(0.02) end
+        Library:Notify("Maxed "..n.." ores",2)
+    end,
+})
 LeftAuto:AddButton({ Text = "List Upgraders", Func = function()
         local ups=getUpgraders()
         Library:Notify("Upgraders: "..#ups,3)
         for i,up in ipairs(ups) do print(i, up.model.Name, tostring(up.part.Position)) if i>8 then break end end
     end,
 })
+
+-- Max Value At Drop
+local maxAtDropEnabled = false
+local maxAtDropConn = nil
+local function maxOreInstant(ore)
+    if not ore or not ore.Parent then return end
+    local ups = getUpgraders()
+    if #ups == 0 then return end
+    -- use bulk fire for speed
+    local batch = {}
+    for _, up in ipairs(ups) do
+        table.insert(batch, {"Upgrade", ore.Name, up.part})
+        -- also tp for visual
+        pcall(function()
+            ore:PivotTo(up.part.CFrame * CFrame.new(0, ore.Size.Y/2 + 1.2, 0))
+        end)
+    end
+    if #batch > 0 then
+        for i=1, #batch, 60 do
+            local chunk = {}
+            for j=i, math.min(i+59, #batch) do table.insert(chunk, batch[j]) end
+            pcall(function() OreActions:FireServer(chunk) end)
+        end
+    end
+    -- also set Worth visually huge (client)
+    pcall(function()
+        local cur = ore:GetAttribute("Worth") or 100
+        -- estimate max: multiply by each upgrader approx 1.5-3x, just boost
+        ore:SetAttribute("Worth", cur * (1.8 ^ math.min(#ups, 12)))
+    end)
+end
+local function setMaxAtDrop(v)
+    maxAtDropEnabled = v
+    if maxAtDropConn then maxAtDropConn:Disconnect() maxAtDropConn=nil end
+    if v then
+        local plot = getPlot()
+        if plot and plot:FindFirstChild("ClientOres") then
+            maxAtDropConn = plot.ClientOres.ChildAdded:Connect(function(ore)
+                task.wait(0.05)
+                if ore:IsA("BasePart") then
+                    maxOreInstant(ore)
+                elseif ore:IsA("Model") and ore.PrimaryPart then
+                    maxOreInstant(ore.PrimaryPart)
+                end
+            end)
+            -- also max existing
+            for _, ore in ipairs(getOres()) do maxOreInstant(ore) task.wait(0.02) end
+        end
+    end
+end
 
 local RightAuto = Tabs.Automation:AddRightGroupbox("Info FIXED")
 RightAuto:AddLabel("Fixes:\n- Speed now capped at 45 + curved (50x = ~42) + anti-fly stabilizer.\n- Dropper now patches DropRate + OreLimit 1000 + clones ores at Drop part.", true)
