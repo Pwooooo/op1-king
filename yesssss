@@ -1,120 +1,284 @@
 -- yesssss.lua
--- really bad gui with Auto collect button that DOESNT WORK
--- made on purpose to be terrible
+-- really bad gui that OPENS but is completely broken/unusable
 
 local cloneref = (cloneref or clonereference or function(i) return i end)
 local Players = cloneref(game:GetService("Players"))
 local TweenService = cloneref(game:GetService("TweenService"))
 local RunService = cloneref(game:GetService("RunService"))
+local UserInputService = cloneref(game:GetService("UserInputService"))
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- create screen gui with worst possible properties
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AutoCollectGui"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.DisplayOrder = -9999
-ScreenGui.IgnoreGuiInset = false
+ScreenGui.DisplayOrder = 9999
+ScreenGui.IgnoreGuiInset = true
 ScreenGui.Parent = PlayerGui
 
--- main frame - positioned offscreen, tiny, transparent
 local Frame = Instance.new("Frame")
 Frame.Name = "MainFrame"
-Frame.Size = UDim2.new(0, 50, 0, 20)
-Frame.Position = UDim2.new(1.5, 0, 1.5, 0) -- way off screen
-Frame.BackgroundColor3 = Color3.new(1, 1, 1)
-Frame.BackgroundTransparency = 1
-Frame.BorderSizePixel = 5
-Frame.BorderColor3 = Color3.new(0, 0, 0)
+Frame.Size = UDim2.new(0, 300, 0, 200)
+Frame.Position = UDim2.new(0.5, -150, 0.5, -100)
+Frame.BackgroundColor3 = Color3.new(0.05, 0.05, 0.05)
+Frame.BackgroundTransparency = 0.1
+Frame.BorderSizePixel = 3
+Frame.BorderColor3 = Color3.new(1, 0, 0)
 Frame.Visible = true
-Frame.Active = false
-Frame.Draggable = false
+Frame.Active = true
+Frame.Draggable = true
 Frame.Parent = ScreenGui
 
--- auto collect button - doesnt work at all
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+Title.BackgroundTransparency = 0
+Title.BorderSizePixel = 2
+Title.BorderColor3 = Color3.new(1, 0, 0)
+Title.Text = "  AUTO COLLECT GUI v0.0.1 (BROKEN EDITION)"
+Title.TextColor3 = Color3.new(1, 0.2, 0.2)
+Title.TextSize = 14
+Title.Font = Enum.Font.SourceSansBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.TextStrokeTransparency = 0.5
+Title.Parent = Frame
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Name = "CloseBtn"
+CloseBtn.Size = UDim2.new(0, 25, 0, 25)
+CloseBtn.Position = UDim2.new(1, -30, 0, 2)
+CloseBtn.BackgroundColor3 = Color3.new(0.8, 0, 0)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.new(1, 1, 1)
+CloseBtn.TextSize = 14
+CloseBtn.Font = Enum.Font.SourceSansBold
+CloseBtn.Parent = Frame
+CloseBtn.MouseButton1Click:Connect(function()
+    local msg = Instance.new("TextLabel")
+    msg.Size = UDim2.new(0, 200, 0, 30)
+    msg.Position = UDim2.new(0.5, -100, 0.5, 100)
+    msg.BackgroundColor3 = Color3.new(1, 0, 0)
+    msg.Text = "CLOSE BUTTON BROKEN - HAHA"
+    msg.TextColor3 = Color3.new(1, 1, 1)
+    msg.TextSize = 16
+    msg.Font = Enum.Font.SourceSansBold
+    msg.Parent = ScreenGui
+    task.wait(2)
+    msg:Destroy()
+end)
+
 local Button = Instance.new("TextButton")
 Button.Name = "AutoCollectButton"
-Button.Size = UDim2.new(0, 100, 0, 50)
-Button.Position = UDim2.new(0, -200, 0, -200) -- negative position
-Button.BackgroundColor3 = Color3.new(1, 0, 0)
-Button.BackgroundTransparency = 0.5
-Button.BorderSizePixel = 3
-Button.BorderColor3 = Color3.new(1, 1, 1)
-Button.Text = "AUTO COLLECT (BROKEN)"
-Button.TextColor3 = Color3.new(0, 0, 0)
-Button.TextSize = 8
-Button.Font = Enum.Font.SourceSans
+Button.Size = UDim2.new(0.8, 0, 0, 50)
+Button.Position = UDim2.new(0.1, 0, 0.3, 0)
+Button.BackgroundColor3 = Color3.new(0.2, 0.6, 0.2)
+Button.BackgroundTransparency = 0
+Button.BorderSizePixel = 2
+Button.BorderColor3 = Color3.new(0, 0.4, 0)
+Button.Text = "AUTO COLLECT EGGS"
+Button.TextColor3 = Color3.new(1, 1, 1)
+Button.TextSize = 18
+Button.Font = Enum.Font.SourceSansBold
 Button.TextScaled = false
-Button.TextWrapped = false
-Button.TextXAlignment = Enum.TextXAlignment.Left
-Button.TextYAlignment = Enum.TextYAlignment.Bottom
-Button.AutoButtonColor = false
-Button.Active = false
-Button.Selectable = false
+Button.AutoButtonColor = true
+Button.Active = true
+Button.Selectable = true
 Button.Visible = true
-Button.ZIndex = -5
+Button.ZIndex = 10
 Button.Parent = Frame
 
--- text label that says its broken
-local Label = Instance.new("TextLabel")
-Label.Name = "BrokenLabel"
-Label.Size = UDim2.new(0, 200, 0, 50)
-Label.Position = UDim2.new(0, 0, 0, 60)
-Label.BackgroundTransparency = 1
-Label.Text = "THIS BUTTON DOES NOT WORK"
-Label.TextColor3 = Color3.new(1, 0, 0)
-Label.TextSize = 6
-Label.Font = Enum.Font.SourceSans
-Label.TextXAlignment = Enum.TextXAlignment.Center
-Label.Visible = true
-Label.Parent = Frame
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Size = UDim2.new(0.9, 0, 0, 30)
+StatusLabel.Position = UDim2.new(0.05, 0, 0.6, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "STATUS: READY TO NOT WORK"
+StatusLabel.TextColor3 = Color3.new(1, 0.5, 0)
+StatusLabel.TextSize = 14
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Center
+StatusLabel.Parent = Frame
 
--- the "function" that does nothing
+local ProgressBar = Instance.new("Frame")
+ProgressBar.Name = "ProgressBar"
+ProgressBar.Size = UDim2.new(0.8, 0, 0, 20)
+ProgressBar.Position = UDim2.new(0.1, 0, 0.75, 0)
+ProgressBar.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+ProgressBar.BorderSizePixel = 1
+ProgressBar.BorderColor3 = Color3.new(0.5, 0.5, 0.5)
+ProgressBar.Parent = Frame
+
+local ProgressFill = Instance.new("Frame")
+ProgressFill.Name = "Fill"
+ProgressFill.Size = UDim2.new(0, 0, 1, 0)
+ProgressFill.Position = UDim2.new(0, 0, 0, 0)
+ProgressFill.BackgroundColor3 = Color3.new(0, 1, 0)
+ProgressFill.BorderSizePixel = 0
+ProgressFill.Parent = ProgressBar
+
+local isCollecting = false
+
 local function autoCollect()
-    -- intentionally empty - does absolutely nothing
-    -- no remote calls, no loops, no collection logic
-    -- just returns nil immediately
-    return nil
+    if isCollecting then
+        StatusLabel.Text = "STATUS: ALREADY NOT WORKING"
+        return
+    end
+    isCollecting = true
+    collectCount = 0
+    StatusLabel.Text = "STATUS: STARTING BROKEN COLLECTION..."
+    Button.Text = "COLLECTING... (BROKEN)"
+    Button.BackgroundColor3 = Color3.new(0.6, 0.4, 0.2)
+    Button.Active = false
+    
+    local progress = 0
+    local conn
+    conn = RunService.Heartbeat:Connect(function()
+        if not isCollecting then
+            conn:Disconnect()
+            return
+        end
+        
+        local change = math.random(-5, 8)
+        progress = math.clamp(progress + change, 0, 100)
+        ProgressFill.Size = UDim2.new(progress / 100, 0, 1, 0)
+        
+        local msgs = {
+            "COLLECTING EGGS... (NOT REALLY)",
+            "SEARCHING FOR EGGS... (FOUND NONE)",
+            "AUTO COLLECTING... (ERROR 404)",
+            "EGG DETECTED... (JUST KIDDING)",
+            "CONNECTING TO SERVER... (TIMEOUT)",
+            "COLLECTING... (BUT NOT REALLY)",
+            "ALMOST DONE... (NEVER)",
+            "ERROR: EGG NOT FOUND",
+            "RETRYING... (FAILED AGAIN)",
+            "SUCCESS! (LIAR)"
+        }
+        StatusLabel.Text = msgs[math.random(1, #msgs)]
+        
+        if math.random() < 0.1 then
+            ProgressFill.BackgroundColor3 = Color3.new(math.random(), math.random(), math.random())
+        end
+        
+        if math.random() < 0.05 then
+            Button.Text = {"COLLECTING", "ERROR", "BROKEN", "WHY", "STOP"}[math.random(1,5)]
+        end
+        
+        if math.random() < 0.02 then
+            progress = 0
+            ProgressFill.Size = UDim2.new(0, 0, 1, 0)
+            StatusLabel.Text = "STATUS: PROGRESS RESET (ON PURPOSE)"
+        end
+        
+        if progress >= 100 then
+            isCollecting = false
+            conn:Disconnect()
+            Button.Text = "DONE! (NOT REALLY)"
+            Button.BackgroundColor3 = Color3.new(0.2, 0.6, 0.2)
+            Button.Active = true
+            StatusLabel.Text = "STATUS: FINISHED (BUT NOTHING HAPPENED)"
+            ProgressFill.BackgroundColor3 = Color3.new(1, 0, 0)
+            
+            local StarterGui = game:GetService("StarterGui")
+            StarterGui:SetCore("SendNotification", {
+                Title = "Auto Collect Complete",
+                Text = "Collected 0 eggs. Good job!",
+                Duration = 3
+            })
+            
+            task.wait(3)
+            progress = 0
+            ProgressFill.Size = UDim2.new(0, 0, 1, 0)
+            ProgressFill.BackgroundColor3 = Color3.new(0, 1, 0)
+            Button.Text = "AUTO COLLECT EGGS"
+            Button.BackgroundColor3 = Color3.new(0.2, 0.6, 0.2)
+            StatusLabel.Text = "STATUS: READY TO NOT WORK"
+        end
+    end)
 end
 
--- connect button to broken function
-Button.MouseButton1Click:Connect(function()
-    autoCollect() -- calls empty function
-    print("Auto Collect clicked but nothing happened because its broken on purpose")
+local Button = Instance.new("TextButton")
+Button.Name = "AutoCollectButton"
+Button.Size = UDim2.new(0.8, 0, 0, 50)
+Button.Position = UDim2.new(0.1, 0, 0.3, 0)
+Button.BackgroundColor3 = Color3.new(0.2, 0.6, 0.2)
+Button.BackgroundTransparency = 0
+Button.BorderSizePixel = 2
+Button.BorderColor3 = Color3.new(0, 0.4, 0)
+Button.Text = "AUTO COLLECT EGGS"
+Button.TextColor3 = Color3.new(1, 1, 1)
+Button.TextSize = 18
+Button.Font = Enum.Font.SourceSansBold
+Button.TextScaled = false
+Button.AutoButtonColor = true
+Button.Active = true
+Button.Selectable = true
+Button.Visible = true
+Button.ZIndex = 10
+Button.Parent = Frame
+
+Button.MouseButton1Click:Connect(autoCollect)
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Size = UDim2.new(0.9, 0, 0, 30)
+StatusLabel.Position = UDim2.new(0.05, 0, 0.6, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "STATUS: READY TO NOT WORK"
+StatusLabel.TextColor3 = Color3.new(1, 0.5, 0)
+StatusLabel.TextSize = 14
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Center
+StatusLabel.Parent = Frame
+
+local ProgressBar = Instance.new("Frame")
+ProgressBar.Name = "ProgressBar"
+ProgressBar.Size = UDim2.new(0.8, 0, 0, 20)
+ProgressBar.Position = UDim2.new(0.1, 0, 0.75, 0)
+ProgressBar.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+ProgressBar.BorderSizePixel = 1
+ProgressBar.BorderColor3 = Color3.new(0.5, 0.5, 0.5)
+ProgressBar.Parent = Frame
+
+local ProgressFill = Instance.new("Frame")
+ProgressFill.Name = "Fill"
+ProgressFill.Size = UDim2.new(0, 0, 1, 0)
+ProgressFill.Position = UDim2.new(0, 0, 0, 0)
+ProgressFill.BackgroundColor3 = Color3.new(0, 1, 0)
+ProgressFill.BorderSizePixel = 0
+ProgressFill.Parent = ProgressBar
+
+Button.MouseButton1Click:Connect(autoCollect)
+
+local originalPos = Frame.Position
+RunService.Heartbeat:Connect(function()
+    local shake = math.sin(tick() * 10) * 0.5
+    Frame.Position = originalPos + UDim2.new(0, math.sin(tick() * 5) * 2, 0, math.cos(tick() * 7) * 1)
+    
+    if math.random() < 0.01 then
+        Frame.BorderColor3 = Color3.new(math.random(), math.random(), math.random())
+    end
 end)
 
--- also make it disappear when you hover over it
-Button.MouseEnter:Connect(function()
-    Frame.Visible = false
+CloseBtn.MouseEnter:Connect(function()
+    CloseBtn.Position = UDim2.new(1, math.random(-50, -10), 0, math.random(-20, 20))
 end)
 
-Button.MouseLeave:Connect(function()
-    Frame.Visible = true
-end)
-
--- make it spin uncontrollably
-RunService.RenderStepped:Connect(function()
-    Frame.Rotation = Frame.Rotation + 10
-    Frame.Position = UDim2.new(math.sin(tick()) * 2, 0, math.cos(tick()) * 2, 0)
-end)
-
--- notification that gui loaded but broken
 local StarterGui = game:GetService("StarterGui")
 StarterGui:SetCore("SendNotification", {
     Title = "Auto Collect GUI",
-    Text = "Loaded but button is broken on purpose lol",
-    Duration = 3
+    Text = "Loaded! Button is broken but window opens. Good luck!",
+    Duration = 5
 })
 
--- also break any existing auto collect remotes by doing nothing
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = ReplicatedStorage:FindFirstChild("Remotes")
 if Remotes then
-    -- intentionally do not connect to any remotes
-    -- just waste memory
     local useless = Instance.new("Folder")
-    useless.Name = "BrokenAutoCollect"
+    useless.Name = "BrokenAutoCollect_v2"
     useless.Parent = Remotes
 end
