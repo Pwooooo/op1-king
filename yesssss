@@ -1,11 +1,13 @@
 -- yesssss.lua
 -- really bad gui that OPENS but is completely broken/unusable
+-- fixed for executors without cloneref
 
-local cloneref = (cloneref or clonereference or function(i) return i end)
-local Players = cloneref(game:GetService("Players"))
-local TweenService = cloneref(game:GetService("TweenService"))
-local RunService = cloneref(game:GetService("RunService"))
-local UserInputService = cloneref(game:GetService("UserInputService"))
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -183,7 +185,6 @@ local function autoCollect()
             StatusLabel.Text = "STATUS: FINISHED (BUT NOTHING HAPPENED)"
             ProgressFill.BackgroundColor3 = Color3.new(1, 0, 0)
             
-            local StarterGui = game:GetService("StarterGui")
             StarterGui:SetCore("SendNotification", {
                 Title = "Auto Collect Complete",
                 Text = "Collected 0 eggs. Good job!",
@@ -268,14 +269,12 @@ CloseBtn.MouseEnter:Connect(function()
     CloseBtn.Position = UDim2.new(1, math.random(-50, -10), 0, math.random(-20, 20))
 end)
 
-local StarterGui = game:GetService("StarterGui")
 StarterGui:SetCore("SendNotification", {
     Title = "Auto Collect GUI",
     Text = "Loaded! Button is broken but window opens. Good luck!",
     Duration = 5
 })
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = ReplicatedStorage:FindFirstChild("Remotes")
 if Remotes then
     local useless = Instance.new("Folder")
