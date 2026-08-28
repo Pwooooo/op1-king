@@ -1,6 +1,6 @@
 -- yesssss.lua
 -- really bad gui that OPENS but is completely broken/unusable
--- fixed for executors without cloneref
+-- fixed for executors without cloneref, and Luau syntax
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -124,6 +124,20 @@ ProgressFill.Parent = ProgressBar
 
 local isCollecting = false
 
+local BROKEN_TEXTS = {"COLLECTING", "ERROR", "BROKEN", "WHY", "STOP"}
+local STATUS_MSGS = {
+    "COLLECTING EGGS... (NOT REALLY)",
+    "SEARCHING FOR EGGS... (FOUND NONE)",
+    "AUTO COLLECTING... (ERROR 404)",
+    "EGG DETECTED... (JUST KIDDING)",
+    "CONNECTING TO SERVER... (TIMEOUT)",
+    "COLLECTING... (BUT NOT REALLY)",
+    "ALMOST DONE... (NEVER)",
+    "ERROR: EGG NOT FOUND",
+    "RETRYING... (FAILED AGAIN)",
+    "SUCCESS! (LIAR)"
+}
+
 local function autoCollect()
     if isCollecting then
         StatusLabel.Text = "STATUS: ALREADY NOT WORKING"
@@ -148,26 +162,14 @@ local function autoCollect()
         progress = math.clamp(progress + change, 0, 100)
         ProgressFill.Size = UDim2.new(progress / 100, 0, 1, 0)
         
-        local msgs = {
-            "COLLECTING EGGS... (NOT REALLY)",
-            "SEARCHING FOR EGGS... (FOUND NONE)",
-            "AUTO COLLECTING... (ERROR 404)",
-            "EGG DETECTED... (JUST KIDDING)",
-            "CONNECTING TO SERVER... (TIMEOUT)",
-            "COLLECTING... (BUT NOT REALLY)",
-            "ALMOST DONE... (NEVER)",
-            "ERROR: EGG NOT FOUND",
-            "RETRYING... (FAILED AGAIN)",
-            "SUCCESS! (LIAR)"
-        }
-        StatusLabel.Text = msgs[math.random(1, #msgs)]
+        StatusLabel.Text = STATUS_MSGS[math.random(1, #STATUS_MSGS)]
         
         if math.random() < 0.1 then
             ProgressFill.BackgroundColor3 = Color3.new(math.random(), math.random(), math.random())
         end
         
         if math.random() < 0.05 then
-            Button.Text = {"COLLECTING", "ERROR", "BROKEN", "WHY", "STOP"}[math.random(1,5)]
+            Button.Text = BROKEN_TEXTS[math.random(1, #BROKEN_TEXTS)]
         end
         
         if math.random() < 0.02 then
