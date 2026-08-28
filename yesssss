@@ -1,6 +1,6 @@
 -- yesssss.lua
 -- really bad gui that OPENS but is completely broken/unusable
--- fixed for executors without cloneref, and Luau syntax
+-- Luau syntax fixed: no table literal indexing, math.random with args
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -162,14 +162,16 @@ local function autoCollect()
         progress = math.clamp(progress + change, 0, 100)
         ProgressFill.Size = UDim2.new(progress / 100, 0, 1, 0)
         
-        StatusLabel.Text = STATUS_MSGS[math.random(1, #STATUS_MSGS)]
+        local msgIndex = math.random(1, #STATUS_MSGS)
+        StatusLabel.Text = STATUS_MSGS[msgIndex]
         
         if math.random() < 0.1 then
             ProgressFill.BackgroundColor3 = Color3.new(math.random(), math.random(), math.random())
         end
         
         if math.random() < 0.05 then
-            Button.Text = BROKEN_TEXTS[math.random(1, #BROKEN_TEXTS)]
+            local textIndex = math.random(1, #BROKEN_TEXTS)
+            Button.Text = BROKEN_TEXTS[textIndex]
         end
         
         if math.random() < 0.02 then
@@ -203,57 +205,6 @@ local function autoCollect()
         end
     end)
 end
-
-local Button = Instance.new("TextButton")
-Button.Name = "AutoCollectButton"
-Button.Size = UDim2.new(0.8, 0, 0, 50)
-Button.Position = UDim2.new(0.1, 0, 0.3, 0)
-Button.BackgroundColor3 = Color3.new(0.2, 0.6, 0.2)
-Button.BackgroundTransparency = 0
-Button.BorderSizePixel = 2
-Button.BorderColor3 = Color3.new(0, 0.4, 0)
-Button.Text = "AUTO COLLECT EGGS"
-Button.TextColor3 = Color3.new(1, 1, 1)
-Button.TextSize = 18
-Button.Font = Enum.Font.SourceSansBold
-Button.TextScaled = false
-Button.AutoButtonColor = true
-Button.Active = true
-Button.Selectable = true
-Button.Visible = true
-Button.ZIndex = 10
-Button.Parent = Frame
-
-Button.MouseButton1Click:Connect(autoCollect)
-
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Name = "StatusLabel"
-StatusLabel.Size = UDim2.new(0.9, 0, 0, 30)
-StatusLabel.Position = UDim2.new(0.05, 0, 0.6, 0)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "STATUS: READY TO NOT WORK"
-StatusLabel.TextColor3 = Color3.new(1, 0.5, 0)
-StatusLabel.TextSize = 14
-StatusLabel.Font = Enum.Font.SourceSans
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Center
-StatusLabel.Parent = Frame
-
-local ProgressBar = Instance.new("Frame")
-ProgressBar.Name = "ProgressBar"
-ProgressBar.Size = UDim2.new(0.8, 0, 0, 20)
-ProgressBar.Position = UDim2.new(0.1, 0, 0.75, 0)
-ProgressBar.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
-ProgressBar.BorderSizePixel = 1
-ProgressBar.BorderColor3 = Color3.new(0.5, 0.5, 0.5)
-ProgressBar.Parent = Frame
-
-local ProgressFill = Instance.new("Frame")
-ProgressFill.Name = "Fill"
-ProgressFill.Size = UDim2.new(0, 0, 1, 0)
-ProgressFill.Position = UDim2.new(0, 0, 0, 0)
-ProgressFill.BackgroundColor3 = Color3.new(0, 1, 0)
-ProgressFill.BorderSizePixel = 0
-ProgressFill.Parent = ProgressBar
 
 Button.MouseButton1Click:Connect(autoCollect)
 
