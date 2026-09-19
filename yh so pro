@@ -4836,8 +4836,12 @@ end
         end
         local lab = gb:AddLabel("")
         local entry = { kind = "toggle", status = SkyProxy(lab, "") }
+        local shownTitle = title
+        if (sec and sec.name or ""):lower() == tostring(title or ""):lower() then
+            shownTitle = "Enabled"
+        end
         gb:AddToggle(key, {
-            Text = title,
+            Text = shownTitle,
             Default = not not default,
             Tooltip = desc,
             Callback = function(v)
