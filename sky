@@ -23918,6 +23918,7 @@ end)()
 -- SkyLinoria (window, tab, notify). No teleports, no remotes.
 -- =====================================================================
 do
+    local __spawnerOk, __spawnerErr = pcall(function()
     if getgenv().__SKY_SPAWNER then pcall(getgenv().__SKY_SPAWNER.unload) end
 
     local TweenService = game:GetService("TweenService")
@@ -23983,7 +23984,22 @@ do
         return char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
     end
 
-    local Directory = require(ReplicatedStorage.Data.Assets).Directory
+    local Directory
+    do
+        local ok, mod = pcall(function() return require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("Assets")) end)
+        if ok and type(mod) == "table" and mod.Directory then
+            Directory = mod.Directory
+        else
+            task.wait(2)
+            local ok2, mod2 = pcall(function() return require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("Assets")) end)
+            if ok2 and type(mod2) == "table" and mod2.Directory then
+                Directory = mod2.Directory
+            else
+                pcall(function() _SkyLinRef:Notify("Spawner: Assets not ready", 4) end)
+                Directory = {}
+            end
+        end
+    end
 
     for key, entry in pairs(Directory) do
         local rarityInfo = entry.Rarity or {}
@@ -24768,4 +24784,6 @@ do
     refreshPetList()
     if pets[1] then selectPetByName(pets[1].name) end
     warn("[SKY SPAWNER] loaded - " .. #pets .. " assets indexed.")
+    end)
+    if not __spawnerOk then warn("[SKY SPAWNER] init failed: " .. tostring(__spawnerErr)) pcall(function() _SkyLinRef:Notify("Spawner failed: " .. tostring(__spawnerErr):sub(1,80), 5) end) end
 end
