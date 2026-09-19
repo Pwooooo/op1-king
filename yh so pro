@@ -4834,8 +4834,8 @@ end
             t10[key] = { kind = "toggle", status = { Text = "" }, set = function(v) t9[key] = not not v end }
             return
         end
-        local lab = gb:AddLabel(desc or "")
-        local entry = { kind = "toggle", status = SkyProxy(lab, desc or "") }
+        local lab = gb:AddLabel("")
+        local entry = { kind = "toggle", status = SkyProxy(lab, "") }
         gb:AddToggle(key, {
             Text = title,
             Default = not not default,
@@ -4886,7 +4886,7 @@ end
             t10[key] = { kind = "slider", status = { Text = "" }, set = function(v) t9[key] = v end }
             return
         end
-        local lab = gb:AddLabel(desc or "")
+        local lab = gb:AddLabel("")
         gb:AddSlider(key, {
             Text = title,
             Default = default,
@@ -4901,7 +4901,7 @@ end
                 SkyFire(key, v)
             end,
         })
-        t10[key] = { kind = "slider", status = SkyProxy(lab, desc or ""),
+        t10[key] = { kind = "slider", status = SkyProxy(lab, ""),
             set = function(v)
                 SkySilent[key] = true
                 pcall(function() SkyLibOptions[key]:SetValue(v) end)
@@ -4928,7 +4928,7 @@ end
                 set = function(v) t9[key] = v end }
             return
         end
-        local lab = gb:AddLabel(desc or "")
+        local lab = gb:AddLabel("")
         gb:AddDropdown(key, {
             Values = values,
             Default = linDefault,
@@ -4950,7 +4950,7 @@ end
                 SkyFire(key, t9[key])
             end,
         })
-        local entry = { kind = "dropdown", status = SkyProxy(lab, desc or ""), options = values }
+        local entry = { kind = "dropdown", status = SkyProxy(lab, ""), options = values }
         entry.set = function(v)
             local lv = v
             if multi and type(v) == "table" then
@@ -4990,7 +4990,7 @@ end
                 set = function(v) t9[key] = tostring(v or "") end }
             return
         end
-        local lab = gb:AddLabel(desc or "")
+        local lab = gb:AddLabel("")
         local boxProxy = { Text = t9[key] }
         local host = gb
         if opts and opts.visibleIf then
@@ -5015,7 +5015,7 @@ end
                 SkyFire(key, v)
             end,
         })
-        t10[key] = { kind = "input", status = SkyProxy(lab, desc or ""), box = boxProxy,
+        t10[key] = { kind = "input", status = SkyProxy(lab, ""), box = boxProxy,
             set = function(v)
                 v = tostring(v or "")
                 SkySilent[key] = true
@@ -5034,7 +5034,7 @@ end
             t10[key] = { kind = "button", status = { Text = "" } }
             return
         end
-        local lab = gb:AddLabel(desc or "")
+        local lab = gb:AddLabel("")
         gb:AddButton({
             Text = buttonText or title,
             Tooltip = desc,
@@ -5043,7 +5043,7 @@ end
                 SkyFire(key, nil)
             end,
         })
-        t10[key] = { kind = "button", status = SkyProxy(lab, desc or "") }
+        t10[key] = { kind = "button", status = SkyProxy(lab, "") }
         if sec then sec.n = (sec.n or 0) + 1 end
     end
 
@@ -5055,7 +5055,7 @@ end
                 set = function(v) if typeof(v) == "EnumItem" then t9[key] = v end end }
             return
         end
-        local lab = gb:AddLabel(desc or "")
+        local lab = gb:AddLabel("")
         gb:AddLabel(title):AddKeyPicker(key, {
             Default = (typeof(defaultKey) == "EnumItem" and defaultKey.Name) or tostring(defaultKey or "RightShift"),
             Text = title,
@@ -5069,7 +5069,7 @@ end
                 SkyFire(key, newKey)
             end,
         })
-        t10[key] = { kind = "keybind", status = SkyProxy(lab, desc or ""),
+        t10[key] = { kind = "keybind", status = SkyProxy(lab, ""),
             set = function(v)
                 local nm = typeof(v) == "EnumItem" and v.Name or tostring(v or "")
                 SkySilent[key] = true
