@@ -5087,6 +5087,11 @@ end
     SkyThemeManager:SetLibrary(SkyLinoria)
     SkyThemeManager:SetFolder("SkyHub")
     SkyThemeManager:ApplyToTab(SkyTabs.Config)
+
+    -- expose for spawner block outside this scope
+    getgenv().SkyTabs = SkyTabs
+    getgenv().SkyWindow = SkyWindow
+    getgenv().SkyLinoria = SkyLinoria
     local function SkyApplyBlackout()
         pcall(function()
             SkyLinoria.BackgroundColor = Color3.fromRGB(0, 0, 0)
@@ -5641,7 +5646,7 @@ v289(v300, "ResetWin", "Reset UI defaults", "theme back to Dark, UI scale to 100
         pcall(t10.UIScale.set, 100)
     end
 
-    SkyLinoria:Notify("UI defaults restored")
+    _SkyLinRef:Notify("UI defaults restored")
 end, false)
 function t10.UIScale.on(p136)
     v108.Scale = p136 / 100
@@ -23957,7 +23962,7 @@ do
 
     local function skyNotify(title, content, duration)
         pcall(function()
-            SkyLinoria:Notify(tostring(title) .. " - " .. tostring(content), duration or 3)
+            _SkyLinRef:Notify(tostring(title) .. " - " .. tostring(content), duration or 3)
         end)
     end
 
@@ -24541,7 +24546,9 @@ do
     end
 
     -- ================= UI (Linoria, inside Sky hub) =================
-    local spawnerTab = SkyTabs.Spawner
+    local _SkyTabsRef = SkyTabs or getgenv().SkyTabs
+    local _SkyLinRef = SkyLinoria or getgenv().SkyLinoria
+    local spawnerTab = _SkyTabsRef.Spawner
     local petsBox = spawnerTab:AddLeftGroupbox("Pets")
     local previewBox = spawnerTab:AddRightGroupbox("Preview")
     local optionsBox = spawnerTab:AddLeftGroupbox("Options")
@@ -24625,11 +24632,11 @@ do
         Text = "Spawn selected",
         Func = function()
             if not selectedPet then
-                SkyLinoria:Notify("Pick a pet first", 2)
+                _SkyLinRef:Notify("Pick a pet first", 2)
                 return
             end
             local ok, err = spawnPet(selectedPet)
-            SkyLinoria:Notify(ok and (selectedPet.name .. " spawned") or ("spawn failed: " .. tostring(err)), 3)
+            _SkyLinRef:Notify(ok and (selectedPet.name .. " spawned") or ("spawn failed: " .. tostring(err)), 3)
         end,
     })
 
@@ -24637,11 +24644,11 @@ do
         Text = "Take into backpack",
         Func = function()
             if not selectedPet then
-                SkyLinoria:Notify("Pick a pet first", 2)
+                _SkyLinRef:Notify("Pick a pet first", 2)
                 return
             end
             local ok, err = giveTool(selectedPet)
-            SkyLinoria:Notify(ok and (selectedPet.name .. " -> backpack") or ("tool failed: " .. tostring(err)), 3)
+            _SkyLinRef:Notify(ok and (selectedPet.name .. " -> backpack") or ("tool failed: " .. tostring(err)), 3)
         end,
     })
 
@@ -24695,7 +24702,7 @@ do
         Func = function()
             local pet = pets[math.random(1, #pets)]
             spawnPet(pet)
-            SkyLinoria:Notify(pet.name .. ": random spawn", 2)
+            _SkyLinRef:Notify(pet.name .. ": random spawn", 2)
         end,
     })
 
@@ -24710,7 +24717,7 @@ do
                         task.wait(0.05)
                     end
                 end
-                SkyLinoria:Notify("bulk spawn: " .. count .. " spawned", 3)
+                _SkyLinRef:Notify("bulk spawn: " .. count .. " spawned", 3)
             end)
         end,
     })
@@ -24720,7 +24727,7 @@ do
         Func = function()
             local count = #activeSpawns
             clearSpawns()
-            SkyLinoria:Notify("cleared: " .. count .. " removed", 2)
+            _SkyLinRef:Notify("cleared: " .. count .. " removed", 2)
         end,
     })
 
@@ -24729,7 +24736,7 @@ do
         Func = function()
             local count = #activeTools
             clearTools()
-            SkyLinoria:Notify("backpack cleared: " .. count .. " removed", 2)
+            _SkyLinRef:Notify("backpack cleared: " .. count .. " removed", 2)
         end,
     })
 
@@ -24737,7 +24744,7 @@ do
         Text = "Unload spawner",
         Func = function()
             unloadSpawner()
-            SkyLinoria:Notify("spawner unloaded", 2)
+            _SkyLinRef:Notify("spawner unloaded", 2)
         end,
     })
 
