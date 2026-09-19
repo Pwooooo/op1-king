@@ -24570,11 +24570,16 @@ do
     -- ================= UI (Linoria, inside Sky hub) =================
     local _SkyTabsRef = SkyTabs or getgenv().SkyTabs
     local _SkyLinRef = SkyLinoria or getgenv().SkyLinoria
-    local spawnerTab = _SkyTabsRef.Spawner
-    local petsBox = spawnerTab:AddLeftGroupbox("Pets")
-    local previewBox = spawnerTab:AddRightGroupbox("Preview")
-    local optionsBox = spawnerTab:AddLeftGroupbox("Options")
-    local bulkBox = spawnerTab:AddRightGroupbox("Bulk")
+    -- cloned from Autofarm: 4 v259 sections so sizing/scroll/columns are identical
+    local vSpawPets = v259("Spawner Pets", "search and rarity")
+    local vSpawPrev = v259("Spawner Preview", "model viewer")
+    local vSpawOpts = v259("Spawner Options", "toggles and sliders")
+    local vSpawBulk = v259("Spawner Bulk", "spawn and clear")
+    v261("Spawner", {"Spawner Pets", "Spawner Preview", "Spawner Options", "Spawner Bulk"}, 40)
+    local petsBox = vSpawPets.group or vSpawPets.groupL or getgenv().SkyGroups["Spawner Pets"]
+    local previewBox = vSpawPrev.group or vSpawPrev.groupL or getgenv().SkyGroups["Spawner Preview"]
+    local optionsBox = vSpawOpts.group or vSpawOpts.groupL or getgenv().SkyGroups["Spawner Options"]
+    local bulkBox = vSpawBulk.group or vSpawBulk.groupL or getgenv().SkyGroups["Spawner Bulk"]
 
     local function petMatches(pet)
         local nameMatch = petFilter.text == "" or string.find(string.lower(pet.name), petFilter.text, 1, true) ~= nil
