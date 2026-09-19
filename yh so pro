@@ -4708,6 +4708,7 @@ end
         About = SkyWindow:AddTab("About"),
         Autofarm = SkyWindow:AddTab("Autofarm"),
         Other = SkyWindow:AddTab("Other stuff"),
+        Spawner = SkyWindow:AddTab("spawner yay"),
         Config = SkyWindow:AddTab("Config"),
     }
     local SkyTabByName = {
@@ -23906,3 +23907,858 @@ end;
     print("[UI] Sky ready · RightShift toggles · Dark / Light in Settings")
     v1102("boot", "game logic attached · SkyDump() in F9")
 end)()
+﻿-- =====================================================================
+-- SKY SPAWNER TAB ("spawner yay"): Linoria port of the pet spawner src.
+-- Self-contained locals only; hub touchpoints: SkyWindow/SkyTabs/
+-- SkyLinoria (window, tab, notify). No teleports, no remotes.
+-- =====================================================================
+do
+    if getgenv().__SKY_SPAWNER then pcall(getgenv().__SKY_SPAWNER.unload) end
+
+    local TweenService = game:GetService("TweenService")
+    local Debris = game:GetService("Debris")
+    local Camera = Workspace.CurrentCamera
+
+    local CONFIG = {
+        MAX_SPAWNS     = 40,
+        SPAWN_DISTANCE = 12,
+        SCALE_MULT     = 1,
+        SPIN           = true,
+        FLOAT          = false,
+        OWN_PLOT_ONLY  = true,
+        GROUND         = true,
+        ANIMATE        = true,
+        NAMETAG        = true,
+        ANCHORED       = true,
+        GIVE_TOOL      = true,
+        HAND_MAX_STUDS = 4,
+        MONEY_POPUP    = true,
+        PAY_INTERVAL   = 1,
+        CASH_VISUAL    = true,
+    }
+
+    local running      = true
+    local connections  = {}
+    local activeSpawns = {}
+    local activeTools  = {}
+    local pets         = {}
+    local rarityList   = { "All" }
+    local rarityRank   = {}
+    local selectedPet  = nil
+    local petFilter    = { text = "", rarity = "All" }
+    local infoLabel    = nil
+    local countLabel   = nil
+    local petDropdown  = nil
+
+    local function track(conn)
+        connections[#connections + 1] = conn
+        return conn
+    end
+
+    local function skyNotify(title, content, duration)
+        pcall(function()
+            SkyLinoria:Notify(tostring(title) .. " - " .. tostring(content), duration or 3)
+        end)
+    end
+
+    local function abbreviateNumber(n)
+        n = tonumber(n) or 0
+        local units = { { 1e12, "T" }, { 1e9, "B" }, { 1e6, "M" }, { 1e3, "K" } }
+        for _, unit in ipairs(units) do
+            if n >= unit[1] then
+                return string.format("%.2f", n / unit[1]):gsub("%.?0+$", "") .. unit[2]
+            end
+        end
+        return tostring(math.floor(n))
+    end
+
+    local function getCharacterRoot()
+        local char = LocalPlayer.Character
+        if not char then return nil end
+        return char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
+    end
+
+    local Directory = require(ReplicatedStorage.Data.Assets).Directory
+
+    for key, entry in pairs(Directory) do
+        local rarityInfo = entry.Rarity or {}
+        local rarityName = tostring(rarityInfo._id or rarityInfo.DisplayName or "Unknown")
+        pets[#pets + 1] = {
+            id     = key,
+            name   = tostring(entry.DisplayName or key),
+            icon   = tostring(entry.Icon or ""),
+            rarity = rarityName,
+            rank   = tonumber(rarityInfo.RarityNumber) or 0,
+            color  = typeof(rarityInfo.Color) == "Color3" and rarityInfo.Color or Color3.fromRGB(200, 200, 200),
+            rate   = tonumber(entry.EarningRate) or 0,
+            scale  = tonumber(entry.BaseModelScale) or 1,
+            idle   = entry.Animations and entry.Animations.Idle or nil,
+        }
+        if rarityRank[rarityName] == nil then
+            rarityRank[rarityName] = pets[#pets].rank
+            rarityList[#rarityList + 1] = rarityName
+        end
+    end
+
+    table.sort(pets, function(a, b)
+        if a.rank ~= b.rank then return a.rank > b.rank end
+        return a.name < b.name
+    end)
+
+    table.sort(rarityList, function(a, b)
+        if a == "All" then return true end
+        if b == "All" then return false end
+        return (rarityRank[a] or 0) > (rarityRank[b] or 0)
+    end)
+
+    local function getSpawnFolder()
+        local folder = Workspace:FindFirstChild("__SkySpawns")
+        if not folder then
+            folder = Instance.new("Folder")
+            folder.Name = "__SkySpawns"
+            folder.Parent = Workspace
+        end
+        return folder
+    end
+
+    local function getOwnPlot()
+        local plots = Workspace:FindFirstChild("Plots")
+        if not plots then return nil end
+        local myName = LocalPlayer.Name
+        for _, plot in ipairs(plots:GetChildren()) do
+            local sign = plot:FindFirstChild("PlotSign")
+            if sign then
+                for _, d in ipairs(sign:GetDescendants()) do
+                    if d:IsA("TextLabel") and d.Text == myName then
+                        return plot
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    local function getPlotSpawnPosition(index)
+        local plot = getOwnPlot()
+        if not plot then return nil end
+        local center = plot:FindFirstChild("CenterPoint") or plot:FindFirstChild("SpawnPoint")
+        if not center then return nil end
+        local i      = index or 0
+        local angle  = (i % 10) * (math.pi * 0.2)
+        local radius = math.floor(i / 10) * 3.5 + 5
+        return center.Position + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+    end
+
+    local function resolveGroundPosition(pos, model)
+        if not CONFIG.GROUND then
+            return pos + Vector3.new(0, model:GetExtentsSize().Y * 0.5, 0)
+        end
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances = { model, LocalPlayer.Character, getSpawnFolder() }
+        params.IgnoreWater = true
+        local result = Workspace:Raycast(pos + Vector3.new(0, 40, 0), Vector3.new(0, -300, 0), params)
+        local y = result and result.Position.Y or pos.Y
+        return Vector3.new(pos.X, y + model:GetExtentsSize().Y * 0.5, pos.Z)
+    end
+
+    local function attachNametag(model, pet)
+        local primary = model.PrimaryPart
+        if not primary then return end
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "SkyTag"
+        billboard.Size = UDim2.fromOffset(220, 72)
+        billboard.StudsOffsetWorldSpace = Vector3.new(0, model:GetExtentsSize().Y * 0.65 + 2, 0)
+        billboard.AlwaysOnTop = true
+        billboard.MaxDistance = 400
+        billboard.Parent = primary
+        if pet.icon ~= "" then
+            local img = Instance.new("ImageLabel")
+            img.BackgroundTransparency = 1
+            img.AnchorPoint = Vector2.new(0.5, 0)
+            img.Position = UDim2.new(0.5, 0, 0, 0)
+            img.Size = UDim2.fromOffset(34, 34)
+            img.Image = pet.icon
+            img.ScaleType = Enum.ScaleType.Fit
+            img.Parent = billboard
+        end
+        local title = Instance.new("TextLabel")
+        title.BackgroundTransparency = 1
+        title.Position = UDim2.new(0, 0, 0, 34)
+        title.Size = UDim2.new(1, 0, 0, 22)
+        title.Font = Enum.Font.GothamBold
+        title.TextScaled = true
+        title.TextColor3 = Color3.new(1, 1, 1)
+        title.TextStrokeTransparency = 0.4
+        title.Text = pet.name
+        title.Parent = billboard
+        local sub = Instance.new("TextLabel")
+        sub.BackgroundTransparency = 1
+        sub.Position = UDim2.new(0, 0, 0, 56)
+        sub.Size = UDim2.new(1, 0, 0, 16)
+        sub.Font = Enum.Font.GothamMedium
+        sub.TextScaled = true
+        sub.TextColor3 = pet.color
+        sub.TextStrokeTransparency = 0.5
+        sub.Text = string.format("%s | $%s/s", pet.rarity, abbreviateNumber(pet.rate))
+        sub.Parent = billboard
+    end
+
+    local function setupModel(model, pet)
+        local scale = CONFIG.SCALE_MULT * (pet.scale or 1)
+        if math.abs(scale - 1) > 0.001 then
+            pcall(function() model:ScaleTo(scale) end)
+        end
+        local hasJoints = false
+        for _, d in ipairs(model:GetDescendants()) do
+            if d:IsA("Motor6D") or d:IsA("Weld") or d:IsA("WeldConstraint") then
+                hasJoints = true
+                break
+            end
+        end
+        local primary = model.PrimaryPart
+        for _, part in ipairs(model:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                part.CanQuery  = false
+                part.CanTouch  = false
+                part.Massless  = true
+                local anchored = CONFIG.ANCHORED
+                if anchored then
+                    anchored = (not hasJoints) or part == primary
+                end
+                part.Anchored = anchored
+            end
+        end
+        if primary then
+            primary.Anchored = CONFIG.ANCHORED
+        end
+        return hasJoints
+    end
+
+    local function playIdle(model, pet)
+        if not (CONFIG.ANIMATE and pet.idle) then return end
+        local ok, err = pcall(function()
+            local host = model:FindFirstChildOfClass("Model") or model
+            local controller = host:FindFirstChildOfClass("AnimationController")
+                or host:FindFirstChildOfClass("Humanoid")
+            if not controller then
+                controller = Instance.new("AnimationController")
+                controller.Parent = host
+            end
+            local animator = controller:FindFirstChildOfClass("Animator")
+            if not animator then
+                animator = Instance.new("Animator")
+                animator.Parent = controller
+            end
+            local anim
+            if typeof(pet.idle) == "Instance" and pet.idle:IsA("Animation") then
+                anim = pet.idle:Clone()
+            else
+                anim = Instance.new("Animation")
+                anim.AnimationId = tostring(pet.idle)
+            end
+            local trackAnim = animator:LoadAnimation(anim)
+            trackAnim.Looped = true
+            trackAnim:Play()
+        end)
+        if not ok then
+            warn("[SKY SPAWNER] idle animation failed for " .. pet.name .. ": " .. tostring(err))
+        end
+    end
+
+    local function enforceSpawnLimit()
+        while #activeSpawns > CONFIG.MAX_SPAWNS do
+            local record = table.remove(activeSpawns, 1)
+            if record and record.model then
+                pcall(function() record.model:Destroy() end)
+            end
+        end
+    end
+
+    local lastTouchPos = nil
+    track(UserInputService.TouchTap:Connect(function(pos)
+        if pos and pos[1] then lastTouchPos = pos[1] end
+    end))
+    track(UserInputService.TouchEnded:Connect(function(part)
+        lastTouchPos = part.Position
+    end))
+
+    local function getSpawnPosition()
+        local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+        if isMobile and lastTouchPos and Camera then
+            local ray = Camera:ViewportPointToRay(lastTouchPos.X, lastTouchPos.Y)
+            local params = RaycastParams.new()
+            params.FilterType = Enum.RaycastFilterType.Exclude
+            params.FilterDescendantsInstances = { LocalPlayer.Character, Workspace:FindFirstChild("__SkySpawns") }
+            local result = Workspace:Raycast(ray.Origin, ray.Direction * 600, params)
+            if result then return result.Position end
+        end
+        local ok, mouse = pcall(function() return LocalPlayer:GetMouse() end)
+        if ok and mouse and mouse.Hit and mouse.Target then
+            return mouse.Hit.Position
+        end
+        local root = getCharacterRoot()
+        if root then
+            return root.Position + root.CFrame.LookVector * CONFIG.SPAWN_DISTANCE
+        end
+        return nil
+    end
+
+    local function spawnPet(pet, positionOverride)
+        if not running then return false, "unloaded" end
+        local modelsFolder = ReplicatedStorage:FindFirstChild("AssetModels")
+        if modelsFolder then
+            modelsFolder = modelsFolder:FindFirstChild(pet.id)
+        end
+        if not modelsFolder then
+            return false, "no model for " .. pet.id
+        end
+        local root = getCharacterRoot()
+        if not root then
+            return false, "character not loaded"
+        end
+        local clone = modelsFolder:Clone()
+        clone.Name = "SKY_" .. pet.id
+        local jointed = setupModel(clone, pet)
+        clone.Parent = getSpawnFolder()
+        local targetPos
+        if CONFIG.OWN_PLOT_ONLY then
+            targetPos = getPlotSpawnPosition(#activeSpawns)
+        end
+        if not targetPos then
+            if typeof(positionOverride) == "Vector3" then
+                targetPos = positionOverride
+            else
+                local index = #activeSpawns
+                local angle = (index % 12) * (math.pi / 6)
+                local dist  = CONFIG.SPAWN_DISTANCE + math.floor(index / 12) * 6
+                targetPos = root.Position + Vector3.new(math.cos(angle) * dist, 0, math.sin(angle) * dist)
+            end
+        end
+        local finalPos = resolveGroundPosition(targetPos, clone)
+        local look     = root.Position
+        pcall(function()
+            clone:PivotTo(CFrame.new(finalPos, Vector3.new(look.X, finalPos.Y, look.Z)))
+        end)
+        if CONFIG.NAMETAG then
+            pcall(attachNametag, clone, pet)
+        end
+        playIdle(clone, pet)
+        local now = os.clock()
+        activeSpawns[#activeSpawns + 1] = {
+            model     = clone,
+            root      = clone.PrimaryPart,
+            basePos   = finalPos,
+            t0        = now,
+            lastPay   = now,
+            name      = pet.name,
+            rate      = pet.rate,
+            tagHeight = clone:GetExtentsSize().Y * 0.65 + 4,
+            jointed   = jointed,
+        }
+        enforceSpawnLimit()
+        return true
+    end
+
+    local function clearSpawns()
+        for _, record in ipairs(activeSpawns) do
+            if record.model then
+                pcall(function() record.model:Destroy() end)
+            end
+        end
+        table.clear(activeSpawns)
+        local folder = Workspace:FindFirstChild("__SkySpawns")
+        if folder then
+            pcall(function() folder:Destroy() end)
+        end
+    end
+
+    local function moneyPopup(record)
+        if not record.root or not record.root.Parent then return end
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "SkyCash"
+        billboard.Size = UDim2.fromOffset(150, 40)
+        billboard.StudsOffsetWorldSpace = Vector3.new(0, record.tagHeight, 0)
+        billboard.AlwaysOnTop = true
+        billboard.MaxDistance = 300
+        billboard.Adornee = record.root
+        billboard.Parent = record.root
+        local label = Instance.new("TextLabel")
+        label.BackgroundTransparency = 1
+        label.Size = UDim2.fromScale(1, 1)
+        label.Font = Enum.Font.LuckiestGuy
+        label.TextScaled = true
+        label.TextColor3 = Color3.fromRGB(80, 235, 105)
+        label.TextStrokeColor3 = Color3.fromRGB(10, 45, 15)
+        label.TextStrokeTransparency = 0.15
+        label.Text = "+$" .. abbreviateNumber(record.rate)
+        label.Parent = billboard
+        TweenService:Create(billboard,
+            TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            { StudsOffsetWorldSpace = Vector3.new(0, record.tagHeight + 4.5, 0) }
+        ):Play()
+        TweenService:Create(label,
+            TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+            { TextTransparency = 1, TextStrokeTransparency = 1 }
+        ):Play()
+        Debris:AddItem(billboard, 1.3)
+    end
+
+    local function giveTool(pet)
+        if not running then return false, "unloaded" end
+        local modelsFolder = ReplicatedStorage:FindFirstChild("AssetModels")
+        if modelsFolder then
+            modelsFolder = modelsFolder:FindFirstChild(pet.id)
+        end
+        if not modelsFolder then
+            return false, "no model for " .. pet.id
+        end
+        local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+        if not backpack then
+            return false, "no backpack"
+        end
+        local tool = Instance.new("Tool")
+        tool.Name = pet.name
+        tool.ToolTip = string.format("%s | $%s/s - click to place (one use)", pet.rarity, abbreviateNumber(pet.rate))
+        tool.CanBeDropped = false
+        tool.RequiresHandle = true
+        tool.TextureId = pet.icon
+        local handle = Instance.new("Part")
+        handle.Name = "Handle"
+        handle.Size = Vector3.new(1, 1, 1)
+        handle.Transparency = 1
+        handle.CanCollide = false
+        handle.CanQuery = false
+        handle.CanTouch = false
+        handle.Massless = true
+        handle.Parent = tool
+        local clone = modelsFolder:Clone()
+        clone.Name = "Pet"
+        local size   = clone:GetExtentsSize()
+        local maxDim = math.max(size.X, size.Y, size.Z)
+        if maxDim > CONFIG.HAND_MAX_STUDS then
+            local factor = CONFIG.HAND_MAX_STUDS / maxDim
+            pcall(function() clone:ScaleTo(factor ^ 0.5) end)
+        end
+        local primary = clone.PrimaryPart or clone:FindFirstChildWhichIsA("BasePart", true)
+        local hasMotor = false
+        for _, d in ipairs(clone:GetDescendants()) do
+            if d:IsA("Motor6D") then
+                hasMotor = true
+                break
+            end
+        end
+        for _, part in ipairs(clone:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Anchored = false
+                part.CanCollide = false
+                part.CanQuery = false
+                part.CanTouch = false
+                part.Massless = true
+            end
+        end
+        clone.Parent = tool
+        if primary then
+            local weld = Instance.new("Weld")
+            weld.Part0 = handle
+            weld.Part1 = primary
+            weld.C0 = CFrame.new(0, clone:GetExtentsSize().Y * 0.4, 0)
+            weld.Parent = handle
+        end
+        if not hasMotor then
+            for _, d in ipairs(clone:GetDescendants()) do
+                if d:IsA("BasePart") and d ~= primary then
+                    local wc = Instance.new("WeldConstraint")
+                    wc.Part0 = primary
+                    wc.Part1 = d
+                    wc.Parent = primary
+                end
+            end
+        else
+            playIdle(clone, pet)
+        end
+        tool.Parent = backpack
+        activeTools[#activeTools + 1] = tool
+        track(tool.Activated:Connect(function()
+            local pos = getSpawnPosition()
+            local ok, err = spawnPet(pet, pos)
+            if not ok then
+                warn("[SKY SPAWNER] place failed: " .. tostring(err))
+                return
+            end
+            for i = #activeTools, 1, -1 do
+                if activeTools[i] == tool then
+                    table.remove(activeTools, i)
+                end
+            end
+            pcall(function() tool:Destroy() end)
+        end))
+        return true
+    end
+
+    local function clearTools()
+        for _, tool in ipairs(activeTools) do
+            pcall(function() tool:Destroy() end)
+        end
+        table.clear(activeTools)
+    end
+
+    local MULTIPLIERS = { K = 1e3, M = 1e6, B = 1e9, T = 1e12 }
+    local cashVisual = { label = nil, base = 0, bonus = 0, shown = 0, ours = nil, conn = nil }
+
+    local function parseMoney(text)
+        local numStr, suffix = tostring(text):gsub("[%$,%s]", ""):match("^([%d%.]+)(%a*)$")
+        if not numStr then return nil end
+        local mult = suffix ~= "" and MULTIPLIERS[suffix:upper()] or 1
+        if not mult then return nil end
+        return (tonumber(numStr) or 0) * mult
+    end
+
+    local function formatMoney(n)
+        local units = { { 1e12, "T" }, { 1e9, "B" }, { 1e6, "M" }, { 1e3, "K" } }
+        for _, u in ipairs(units) do
+            if n >= u[1] then
+                local val = n / u[1]
+                local fmt = val >= 100 and "%.0f" or "%.1f"
+                return "$" .. string.format(fmt, val):gsub("%.0$", "") .. u[2]
+            end
+        end
+        return "$" .. string.format("%.0f", n)
+    end
+
+    local function findMoneyLabel()
+        local playerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        if not playerGui then return nil end
+        local hud = playerGui:FindFirstChild("HUD")
+        for _, name in ipairs({ "GameHUD", "BottomLeft", "Money", "Value" }) do
+            hud = hud and hud:FindFirstChild(name)
+        end
+        if hud and hud:IsA("TextLabel") then
+            return hud
+        end
+        for _, obj in ipairs(playerGui:GetDescendants()) do
+            if obj:IsA("TextLabel") and obj.Text:match("^%$%d") and obj.AbsoluteSize.X > 40 then
+                local parent = obj
+                while parent do
+                    if parent:IsA("ScreenGui") then
+                        if parent.Enabled then return obj end
+                        break
+                    end
+                    parent = parent.Parent
+                end
+            end
+        end
+        return nil
+    end
+
+    local function hookCashLabel()
+        local label = findMoneyLabel()
+        if not label then return false end
+        if label == cashVisual.label then return true end
+        if cashVisual.conn then
+            pcall(function() cashVisual.conn:Disconnect() end)
+        end
+        cashVisual.label = label
+        cashVisual.base  = parseMoney(label.Text) or 0
+        cashVisual.shown = cashVisual.base + cashVisual.bonus
+        cashVisual.conn = track(label:GetPropertyChangedSignal("Text"):Connect(function()
+            if label.Text ~= cashVisual.ours then
+                cashVisual.base = parseMoney(label.Text) or cashVisual.base
+            end
+        end))
+        return true
+    end
+
+    local function releaseCashLabel()
+        if cashVisual.conn then
+            pcall(function() cashVisual.conn:Disconnect() end)
+        end
+        if cashVisual.label and cashVisual.label.Parent then
+            pcall(function()
+                cashVisual.label.Text = formatMoney(cashVisual.base)
+            end)
+        end
+        cashVisual.label = nil
+        cashVisual.conn  = nil
+        cashVisual.bonus = 0
+        cashVisual.ours  = nil
+    end
+
+    track(RunService.Heartbeat:Connect(function(dt)
+        if not running then return end
+        local now = os.clock()
+        if CONFIG.CASH_VISUAL then
+            if not (cashVisual.label and cashVisual.label.Parent) then
+                hookCashLabel()
+            end
+            if cashVisual.label and cashVisual.bonus > 0 then
+                local target = cashVisual.base + cashVisual.bonus
+                cashVisual.shown = cashVisual.shown + (target - cashVisual.shown) * math.min(1, (dt or 0.016) * 6)
+                if math.abs(target - cashVisual.shown) < 1 then
+                    cashVisual.shown = target
+                end
+                cashVisual.ours = formatMoney(cashVisual.shown)
+                cashVisual.label.Text = cashVisual.ours
+            end
+        end
+        for i = #activeSpawns, 1, -1 do
+            local record = activeSpawns[i]
+            if not record.model or not record.model.Parent then
+                table.remove(activeSpawns, i)
+            else
+                local shouldRotate = CONFIG.SPIN or CONFIG.FLOAT
+                if shouldRotate and record.root and record.root.Anchored then
+                    local t     = now - record.t0
+                    local yOff  = CONFIG.FLOAT and math.sin(t * 1.6) * 0.6 or 0
+                    local yaw   = CONFIG.SPIN and t * 1.1 or 0
+                    record.root.CFrame = CFrame.new(record.basePos + Vector3.new(0, yOff, 0)) * CFrame.Angles(0, yaw, 0)
+                end
+                if now - record.lastPay >= CONFIG.PAY_INTERVAL then
+                    record.lastPay = now
+                    if CONFIG.MONEY_POPUP then
+                        moneyPopup(record)
+                    end
+                    if CONFIG.CASH_VISUAL then
+                        cashVisual.bonus = cashVisual.bonus + record.rate * CONFIG.PAY_INTERVAL
+                    end
+                end
+            end
+        end
+    end))
+
+    local function unloadSpawner()
+        running = false
+        for _, conn in ipairs(connections) do
+            pcall(function() conn:Disconnect() end)
+        end
+        table.clear(connections)
+        clearSpawns()
+        clearTools()
+        releaseCashLabel()
+        getgenv().__SKY_SPAWNER = nil
+        warn("[SKY SPAWNER] unloaded")
+    end
+
+    -- ================= UI (Linoria, inside Sky hub) =================
+    local spawnerTab = SkyTabs.Spawner
+    local petsBox = spawnerTab:AddLeftGroupbox("Pets")
+    local previewBox = spawnerTab:AddRightGroupbox("Preview")
+    local optionsBox = spawnerTab:AddLeftGroupbox("Options")
+    local bulkBox = spawnerTab:AddRightGroupbox("Bulk")
+
+    local function petMatches(pet)
+        local nameMatch = petFilter.text == "" or string.find(string.lower(pet.name), petFilter.text, 1, true) ~= nil
+        local rarityMatch = petFilter.rarity == "All" or pet.rarity == petFilter.rarity
+        return nameMatch and rarityMatch
+    end
+
+    local function refreshPetList()
+        local names = {}
+        for _, pet in ipairs(pets) do
+            if petMatches(pet) then
+                names[#names + 1] = pet.name
+            end
+        end
+        pcall(function() SkyLinoria.Options.SpawnerPet:SetValues(names) end)
+        if countLabel then
+            pcall(function() countLabel:SetText(#names .. " of " .. #pets .. " shown - pick one to spawn") end)
+        end
+        if selectedPet and not table.find(names, selectedPet.name) then
+            selectedPet = nil
+        end
+    end
+
+    local function showPetInfo(pet)
+        if infoLabel and pet then
+            pcall(function()
+                infoLabel:SetText(pet.name .. " | " .. pet.rarity .. " | $" .. abbreviateNumber(pet.rate) .. "/s")
+            end)
+        end
+    end
+
+    local function selectPetByName(name)
+        for _, p in ipairs(pets) do
+            if p.name == name then
+                selectedPet = p
+                showPetInfo(p)
+                return p
+            end
+        end
+        return nil
+    end
+
+    petsBox:AddInput("SpawnerSearch", {
+        Default = "",
+        Text = "Search",
+        Placeholder = "pet name...",
+        Callback = function(v)
+            petFilter.text = string.lower(tostring(v or ""))
+            refreshPetList()
+        end,
+    })
+
+    petsBox:AddDropdown("SpawnerRarity", {
+        Values = rarityList,
+        Default = "All",
+        Multi = false,
+        Text = "Rarity",
+        Callback = function(v)
+            petFilter.rarity = tostring(v)
+            refreshPetList()
+        end,
+    })
+
+    petsBox:AddDropdown("SpawnerPet", {
+        Values = {},
+        Default = nil,
+        Multi = false,
+        Text = "Pet",
+        Callback = function(v)
+            selectPetByName(tostring(v))
+        end,
+    })
+
+    countLabel = petsBox:AddLabel("pick a pet")
+
+    petsBox:AddButton({
+        Text = "Spawn selected",
+        Func = function()
+            if not selectedPet then
+                SkyLinoria:Notify("Pick a pet first", 2)
+                return
+            end
+            local ok, err = spawnPet(selectedPet)
+            SkyLinoria:Notify(ok and (selectedPet.name .. " spawned") or ("spawn failed: " .. tostring(err)), 3)
+        end,
+    })
+
+    petsBox:AddButton({
+        Text = "Take into backpack",
+        Func = function()
+            if not selectedPet then
+                SkyLinoria:Notify("Pick a pet first", 2)
+                return
+            end
+            local ok, err = giveTool(selectedPet)
+            SkyLinoria:Notify(ok and (selectedPet.name .. " -> backpack") or ("tool failed: " .. tostring(err)), 3)
+        end,
+    })
+
+    previewBox:AddLabel("Model viewer has no viewport in Linoria - use the pet list, info shows here.")
+    infoLabel = previewBox:AddLabel("- | pick a pet")
+
+    local function spawnerToggle(title, desc, key)
+        optionsBox:AddToggle("Spawner" .. key, {
+            Text = title,
+            Tooltip = desc,
+            Default = CONFIG[key],
+            Callback = function(v)
+                CONFIG[key] = v
+                if key == "CASH_VISUAL" and not v then releaseCashLabel() end
+            end,
+        })
+    end
+
+    local function spawnerSlider(title, mn, mx, step, key, after)
+        optionsBox:AddSlider("Spawner" .. key, {
+            Text = title,
+            Default = CONFIG[key],
+            Min = mn,
+            Max = mx,
+            Rounding = step >= 1 and 0 or 1,
+            Callback = function(v)
+                CONFIG[key] = tonumber(v) or CONFIG[key]
+                if after then after() end
+            end,
+        })
+    end
+
+    spawnerToggle("Give as backpack tool", "card click hands you the pet, click again in-world to place it", "GIVE_TOOL")
+    spawnerSlider("Held pet size (studs)", 2, 14, 1, "HAND_MAX_STUDS")
+    spawnerSlider("Scale multiplier", 0.2, 8, 0.1, "SCALE_MULT")
+    spawnerSlider("Spawn distance", 4, 60, 1, "SPAWN_DISTANCE")
+    spawnerSlider("Max active spawns", 1, 120, 1, "MAX_SPAWNS", enforceSpawnLimit)
+    spawnerToggle("Spin", nil, "SPIN")
+    spawnerToggle("Float", nil, "FLOAT")
+    spawnerToggle("Place in my plot only", nil, "OWN_PLOT_ONLY")
+    spawnerToggle("Sit on the ground", nil, "GROUND")
+    spawnerToggle("Play idle animation", nil, "ANIMATE")
+    spawnerToggle("Name tags", nil, "NAMETAG")
+    spawnerToggle("Count it on my cash", "your own money label rises with the popups - visual only", "CASH_VISUAL")
+    spawnerToggle("Money popups", "green +$X off every spawn", "MONEY_POPUP")
+    spawnerSlider("Payout interval (s)", 0.5, 10, 0.5, "PAY_INTERVAL")
+    spawnerToggle("Anchored", "off = the rig falls on its own joints", "ANCHORED")
+
+    bulkBox:AddButton({
+        Text = "Spawn random",
+        Func = function()
+            local pet = pets[math.random(1, #pets)]
+            spawnPet(pet)
+            SkyLinoria:Notify(pet.name .. ": random spawn", 2)
+        end,
+    })
+
+    bulkBox:AddButton({
+        Text = "Spawn every pet of the selected rarity",
+        Func = function()
+            task.spawn(function()
+                local count = 0
+                for _, pet in ipairs(pets) do
+                    if petFilter.rarity == "All" or pet.rarity == petFilter.rarity then
+                        if spawnPet(pet) then count += 1 end
+                        task.wait(0.05)
+                    end
+                end
+                SkyLinoria:Notify("bulk spawn: " .. count .. " spawned", 3)
+            end)
+        end,
+    })
+
+    bulkBox:AddButton({
+        Text = "Clear all spawns",
+        Func = function()
+            local count = #activeSpawns
+            clearSpawns()
+            SkyLinoria:Notify("cleared: " .. count .. " removed", 2)
+        end,
+    })
+
+    bulkBox:AddButton({
+        Text = "Empty the backpack",
+        Func = function()
+            local count = #activeTools
+            clearTools()
+            SkyLinoria:Notify("backpack cleared: " .. count .. " removed", 2)
+        end,
+    })
+
+    bulkBox:AddButton({
+        Text = "Unload spawner",
+        Func = function()
+            unloadSpawner()
+            SkyLinoria:Notify("spawner unloaded", 2)
+        end,
+    })
+
+    getgenv().__SKY_SPAWNER = {
+        unload = unloadSpawner,
+        CONFIG = CONFIG,
+        PETS   = pets,
+        spawn  = spawnPet,
+        give   = giveTool,
+        tools  = activeTools,
+        clear  = clearSpawns,
+    }
+
+    track(UserInputService.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        if input.KeyCode == Enum.KeyCode.End then
+            unloadSpawner()
+        end
+    end))
+
+    refreshPetList()
+    if pets[1] then selectPetByName(pets[1].name) end
+    warn("[SKY SPAWNER] loaded - " .. #pets .. " assets indexed.")
+end
