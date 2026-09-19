@@ -23907,7 +23907,7 @@ end;
     print("[UI] Sky ready · RightShift toggles · Dark / Light in Settings")
     v1102("boot", "game logic attached · SkyDump() in F9")
 end)()
-﻿-- =====================================================================
+-- =====================================================================
 -- SKY SPAWNER TAB ("spawner yay"): Linoria port of the pet spawner src.
 -- Self-contained locals only; hub touchpoints: SkyWindow/SkyTabs/
 -- SkyLinoria (window, tab, notify). No teleports, no remotes.
