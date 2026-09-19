@@ -24617,12 +24617,12 @@ do
     })
 
     petsBox:AddDropdown("SpawnerPet", {
-        Values = {},
-        Default = nil,
+        Values = {"(none)"},
+        Default = "(none)",
         Multi = false,
         Text = "Pet",
         Callback = function(v)
-            selectPetByName(tostring(v))
+            if v ~= "(none)" then selectPetByName(tostring(v)) end
         end,
     })
 
