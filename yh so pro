@@ -4696,15 +4696,6 @@ end
     local SkyLibOptions = SkyLinoria.Options
     local SkyLibToggles = SkyLinoria.Toggles
 
-    pcall(function()
-        SkyLinoria.BackgroundColor = Color3.fromRGB(0, 0, 0)
-        SkyLinoria.MainColor = Color3.fromRGB(0, 0, 0)
-        SkyLinoria.AccentColor = Color3.fromRGB(255, 255, 255)
-        SkyLinoria.AccentColorDark = SkyLinoria:GetDarkerColor(SkyLinoria.AccentColor)
-        SkyLinoria.OutlineColor = Color3.fromRGB(0, 0, 0)
-        SkyLinoria.FontColor = Color3.fromRGB(255, 255, 255)
-        SkyLinoria:UpdateColorsUsingRegistry()
-    end)
 
     local SkyWindow = SkyLinoria:CreateWindow({
         Title = "Sky",
@@ -5093,6 +5084,20 @@ end
     SkyThemeManager:SetLibrary(SkyLinoria)
     SkyThemeManager:SetFolder("SkyHub")
     SkyThemeManager:ApplyToTab(SkyTabs.Config)
+    local function SkyApplyBlackout()
+        pcall(function()
+            SkyLinoria.BackgroundColor = Color3.fromRGB(0, 0, 0)
+            SkyLinoria.MainColor = Color3.fromRGB(0, 0, 0)
+            SkyLinoria.AccentColor = Color3.fromRGB(255, 255, 255)
+            SkyLinoria.AccentColorDark = SkyLinoria:GetDarkerColor(SkyLinoria.AccentColor)
+            SkyLinoria.OutlineColor = Color3.fromRGB(0, 0, 0)
+            SkyLinoria.FontColor = Color3.fromRGB(255, 255, 255)
+            SkyLinoria:UpdateColorsUsingRegistry()
+        end)
+    end
+    SkyApplyBlackout()
+    task.delay(2, SkyApplyBlackout)
+
 
 
 local v294 = v259("About", "Sky for Steal an Egg")
