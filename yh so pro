@@ -4697,8 +4697,12 @@ end
     local SkyLibToggles = SkyLinoria.Toggles
 
     pcall(function()
-        SkyLinoria.AccentColor = Color3.fromRGB(232, 232, 232)
+        SkyLinoria.BackgroundColor = Color3.fromRGB(0, 0, 0)
+        SkyLinoria.MainColor = Color3.fromRGB(0, 0, 0)
+        SkyLinoria.AccentColor = Color3.fromRGB(255, 255, 255)
         SkyLinoria.AccentColorDark = SkyLinoria:GetDarkerColor(SkyLinoria.AccentColor)
+        SkyLinoria.OutlineColor = Color3.fromRGB(0, 0, 0)
+        SkyLinoria.FontColor = Color3.fromRGB(255, 255, 255)
         SkyLinoria:UpdateColorsUsingRegistry()
     end)
 
