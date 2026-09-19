@@ -388,7 +388,6 @@ do
 				Plot = "grid",
 				Serverhop = "rocket",
 				Misc = "layers",
-				Webhook = "out",
 				Settings = "cog"
 			}
             t9 = {}
@@ -4723,7 +4722,6 @@ end
         Plot = "Other",
         Serverhop = "Other",
         Misc = "Other",
-        Webhook = "Config",
         Settings = "Config",
     }
 
@@ -5109,7 +5107,6 @@ local v295 = v259("Auto Steal", "targeting, filters, travel")
 local v296 = v259("Plot", "eggs, pets, upgrades, selling")
 local v297 = v259("Serverhop", "fill a reason, then turn Auto hop on")
 local v298 = v259("Misc", "esp, defence, flight")
-local v299 = v259("Webhook", "outbound messages")
 local v300 = v259("Settings", "window and config")
 v261("About", { "About" }, 0)
 v261("Autofarm", { "Auto Steal" }, 10)
@@ -5119,7 +5116,6 @@ v261("Other stuff", {
 	"Misc"
 }, 30)
 v261("Config", {
-	"Webhook",
 	"Settings"
 }, 50);
 (function(p130)
@@ -5441,7 +5437,6 @@ v293(v294, "Auto Steal", "Snatch eggs and bring them to safe zone")
 v293(v294, "Plot", "Place, hatch eggs, auto sell")
 v293(v294, "Serverhop", "Idle, time, or night spawn — Auto hop only leaves if one of those boxes has a number")
 v293(v294, "Misc", "ESP, stats, index claim, anti trap / ragdoll, bat aura, flight, bypass speed, optimizer")
-v293(v294, "Webhook", "Discord embeds with the pet/egg icon on steal, hatch, and sell")
 local v301 = v292()
 local v302 = v291(t1.Website)
 local v303 = v291(t1.Changelog)
@@ -5582,32 +5577,6 @@ v290(v298, "FlightBind", "Flight keybind", "toggles flight without opening the w
 v263(v298, "Performance")
 v281(v298, "Optimizer", "Game optimizer", "lowest gfx: shadows, particles, lights, post-fx, terrain water — off restores", false)
 v282(v298, "FPSCap", "FPS cap", "0 - no fps cap", 0, 240, 0, "")
-v263(v299, "Connection")
-v281(v299, "HookEnabled", "Send outbound", "", false)
-v288(v299, "HookUrl", "Endpoint URL", "paste a URL — never committed", "https://", "")
-v289(v299, "HookTest", "Test send", "posts a sample embed to the URL above", "Send", function()
-end, true)
-v263(v299, "What to send")
-v281(v299, "HookStolen", "Egg stolen", "icon, $/s, rarity, mutations, where it came from", true)
-v281(v299, "HookHatched", "Egg hatched", "icon, $/s, rarity, weight", true)
-v281(v299, "HookSold", "Sold pets or eggs", "icon and what it was earning", false)
-v281(v299, "HookRewards", "Rewards claimed", "index redeem count", false)
-v263(v299, "How much noise")
-v288(v299, "HookMinGen", "Only eggs earning over ($/s)", "stolen and hatched — blank for everything", "everything · e.g. 50m", "")
-v287(v299, "HookRarityFloor", "Rarity floor", "stolen and hatched below this rarity are skipped", {
-	"Any",
-	unpack(t6)
-}, "Any", false)
-v281(v299, "SessionDigest", "Session recap", "every 10 minutes — stolen, lost, hatched, sold, cash. not a steal ping", false)
-v263(v299, "The message")
-v287(v299, "HookPing", "Ping", "", {
-	"No ping",
-	"Here",
-	"User id"
-}, "No ping", false)
-v288(v299, "HookUserId", "User id", "optional", "0", "")
-v281(v299, "HookUsername", "Show my Roblox name and headshot", "", false)
-v281(v299, "ExportUrl", "Let exported configs carry the URL", "off by default", false)
 v263(v300, "Appearance")
 v281(v300, "PhoneUI", "Phone layout", "compact hub for phones / emulators — leave off on PC", u42)
 v282(v300, "UIScale", "UI scale", "zooms the hub — does not crush the layout", 75, 125, 100, "%")
@@ -10227,7 +10196,7 @@ end;
             return true, result31
         end
         local function v1811(p272)
-            if t9.HookEnabled ~= true then
+            if true then -- webhook removed
                 return false, "off"
             end
             local HookUrl = t9.HookUrl
@@ -23450,31 +23419,6 @@ end;
             SellPreview.status.Text = "preview missing"
         end
     end
-    v1238("HookTest", function()
-        local HookTest = t10.HookTest
-
-        if not u1195 or not u1195.test then
-            if HookTest and HookTest.status then
-                HookTest.status.Text = "missing"
-            end
-
-            return
-        end
-
-        if HookTest and HookTest.status then
-            HookTest.status.Text = "sending…"
-        end
-
-        task.spawn(function()
-            local v4577, v4578 = u1195.test()
-
-            if HookTest and HookTest.status then
-                HookTest.status.Text = if not v4577 then "fail · " .. tostring(v4578) else "sent"
-            end
-
-            v1102("hook", not v4577 and "test fail" or "test ok", (tostring(v4578)))
-        end)
-    end)
     v1238("Optimizer", function(p492)
         u1134.opt(p492)
         v1102("esp", "optimizer", p492)
