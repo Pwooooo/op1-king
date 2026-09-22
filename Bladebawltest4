@@ -1,0 +1,28 @@
+repeat task.wait() until game:IsLoaded()
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RS = game:GetService("ReplicatedStorage")
+local lp = Players.LocalPlayer
+warn("[dist2] speed-compensated test live: threshold = 6 + speed*0.08")
+local lastFire = 0
+while true do
+    task.wait()
+    local ch = lp.Character
+    local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+    local balls = Workspace:FindFirstChild("Balls")
+    if hrp and balls then
+        for _, ball in ipairs(balls:GetChildren()) do
+            if ball:GetAttribute("target") == lp.Name then
+                local d = (ball.Position - hrp.Position).Magnitude
+                local ok, speed = pcall(function() return ball.AssemblyLinearVelocity.Magnitude end)
+                speed = (ok and speed) or 0
+                local thresh = 6 + speed * 0.08
+                if d <= thresh and tick() - lastFire > 0.5 then
+                    lastFire = tick()
+                    warn("[dist2] FIRE d=" .. string.format("%.1f", d) .. " speed=" .. string.format("%.0f", speed) .. " thresh=" .. string.format("%.1f", thresh))
+                    pcall(function() RS.Remotes.ParryAttempt:FireServer() end)
+                end
+            end
+        end
+    end
+end
