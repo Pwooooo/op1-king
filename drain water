@@ -66,8 +66,8 @@ local BackpackAmount = BackpackData:WaitForChild("amount")
 local BackpackCapacity = BackpackData:WaitForChild("capacity")
 
 local Workspace = game:GetService("Workspace")
-local MainScene = Workspace:WaitForChild("主场景")
-local VerifyScene = MainScene:WaitForChild("验证场景")
+local MainScene = Workspace:WaitForChild("ä¸»åœºæ™¯")
+local VerifyScene = MainScene:WaitForChild("éªŒè¯åœºæ™¯")
 local WorldFish = VerifyScene:WaitForChild("WorldFish")
 
 local RARITY_ORDER = {
@@ -175,9 +175,9 @@ local function getNextUncompletedStage()
 end
 
 local function getWaterSurfacePos(stageId)
-    local folder = VerifyScene:FindFirstChild("关卡" .. stageId)
+    local folder = VerifyScene:FindFirstChild("å…³å¡" .. stageId)
     if folder then
-        local surface = folder:FindFirstChild("水面")
+        local surface = folder:FindFirstChild("æ°´é¢")
         if surface then
             return surface.Position, surface.Size
         end
@@ -358,9 +358,9 @@ local function placeBestFish()
     if plotId > 0 then
         local plot = workspace:FindFirstChild(tostring(plotId))
         if plot then
-            local playArea = plot:FindFirstChild("玩家区域")
+            local playArea = plot:FindFirstChild("çŽ©å®¶åŒºåŸŸ")
             if playArea then
-                local placeBtn = playArea:FindFirstChild("放置按钮")
+                local placeBtn = playArea:FindFirstChild("æ”¾ç½®æŒ‰é’®")
                 if placeBtn then
                     local putPart = placeBtn:FindFirstChild("Put")
                     if putPart and putPart:IsA("BasePart") then
@@ -369,7 +369,7 @@ local function placeBestFish()
                         tankPos = placeBtn:GetPivot().Position
                     end
                 else
-                    local tank = playArea:FindFirstChild("鱼缸")
+                    local tank = playArea:FindFirstChild("é±¼ç¼¸")
                     if tank and tank:IsA("Model") then
                         tankPos = tank:GetPivot().Position
                     end
