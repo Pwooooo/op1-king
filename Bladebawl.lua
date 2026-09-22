@@ -3163,7 +3163,7 @@ end
 
 NeverZen:Track(UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if not input.UserInputType == Enum.UserInputType.Keyboard then return end
+    if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
     if input.KeyCode == ACHAOTICDATA.Config.AutoParry.Keybind then
         ACHAOTICDATA.Config.AutoParry.Enabled = not ACHAOTICDATA.Config.AutoParry.Enabled
         UI.AutoParryToggle:SetValue(ACHAOTICDATA.Config.AutoParry.Enabled)
@@ -3301,18 +3301,18 @@ do
         local player = args[1]
         
         if player == ACHAOTICDATA.Player.LocalPlayer or player == ACHAOTICDATA.Player.LocalPlayer.Name or (player and player.Name == ACHAOTICDATA.Player.LocalPlayer.Name) then
-            ACHAOTICDATA.Config.ParrySettings.Detections.SlashesOfFury.Flag = true
-            ACHAOTICDATA.Config.ParrySettings.Detections.SlashesOfFury.Count = 0
+            ACHAOTICDATA.Config.ParrySettings.Detections.SlashesofFury.Flag = true
+            ACHAOTICDATA.Config.ParrySettings.Detections.SlashesofFury.Count = 0
         end
     end))
 
     NeverZen:Track(ReplicatedStorage.Packages._Index["sleitnick_net@0.1.0"].net["RE/SlashesOfFuryEnd"].OnClientEvent:Connect(function()
-        ACHAOTICDATA.Config.ParrySettings.Detections.SlashesOfFury.Flag = false
-        ACHAOTICDATA.Config.ParrySettings.Detections.SlashesOfFury.Count = 0
+        ACHAOTICDATA.Config.ParrySettings.Detections.SlashesofFury.Flag = false
+        ACHAOTICDATA.Config.ParrySettings.Detections.SlashesofFury.Count = 0
     end))
 
     NeverZen:Track(ReplicatedStorage.Packages._Index["sleitnick_net@0.1.0"].net["RE/SlashesOfFuryParry"].OnClientEvent:Connect(function()
-        ACHAOTICDATA.Config.ParrySettings.Detections.SlashesOfFury.Count = ACHAOTICDATA.Config.ParrySettings.Detections.SlashesOfFury.Count + 1
+        ACHAOTICDATA.Config.ParrySettings.Detections.SlashesofFury.Count = ACHAOTICDATA.Config.ParrySettings.Detections.SlashesofFury.Count + 1
     end))
 
     NeverZen:Track(ReplicatedStorage.Packages._Index["sleitnick_net@0.1.0"].net["RE/SlashesOfFuryCatch"].OnClientEvent:Connect(function()
