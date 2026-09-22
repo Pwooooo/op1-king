@@ -2366,6 +2366,7 @@ do
         Default = SkinChanger.Enabled,
         Callback = function(value)
             SkinChanger.Enabled = value
+            if SkinChanger.System.ApplyHooks then SkinChanger.System.ApplyHooks(value) end
             if SkinChanger.Enabled then
                 SkinChanger.System.functions.updateSword(SkinChanger.Targets.SwordModel.ModelName)
             end
@@ -3359,22 +3360,59 @@ end
 do 
     do
         do
-            local OriginalSetSword = ACHAOTICASSETS.SwordController.SetSword
-            ACHAOTICASSETS.SwordController.SetSword = function(self, anim)
+            SkinChanger.System.OriginalSetSword = ACHAOTICASSETS.SwordController.SetSword
+            SkinChanger.System.PatchedSetSword = function(self, anim)
                 if SkinChanger.Enabled and SkinChanger.Targets.SwordAnimation.Enabled and SkinChanger.Targets.SwordAnimation.AnimationName and SkinChanger.Targets.SwordAnimation.AnimationName ~= "" then
                     anim = SkinChanger.Targets.SwordAnimation.AnimationName
                 end
-                return OriginalSetSword(self, anim)
+                return SkinChanger.System.OriginalSetSword(self, anim)
             end
         end
         do 
-            local OriginalEquipSwordTo = ACHAOTICASSETS.swordInstances.EquipSwordTo
-            SkinChanger.System.OriginalEquipSwordTo = OriginalEquipSwordTo
-            ACHAOTICASSETS.swordInstances.EquipSwordTo = function(self, char, swordName)
+            SkinChanger.System.OriginalEquipSwordTo = ACHAOTICASSETS.swordInstances.EquipSwordTo
+            SkinChanger.System.PatchedEquipSwordTo = function(self, char, swordName)
                 if SkinChanger.Enabled and SkinChanger.Targets.SwordModel.Enabled and SkinChanger.Targets.SwordModel.ModelName and SkinChanger.Targets.SwordModel.ModelName ~= "" and char == GetCharacter() then
                     swordName = SkinChanger.Targets.SwordModel.ModelName
                 end
-                return OriginalEquipSwordTo(self, char, swordName)
+                return SkinChanger.System.OriginalEquipSwordTo(self, char, swordName)
+            end
+        end
+    end
+
+    -- Game mutations (module patches + connection Disables) install ONLY
+    -- while SkinChanger is on. Doing them at load trips BAC integrity sweeps.
+    SkinChanger.System.ApplyHooks = function(on)
+        if on then
+            ACHAOTICASSETS.SwordController.SetSword = SkinChanger.System.PatchedSetSword
+            ACHAOTICASSETS.swordInstances.EquipSwordTo = SkinChanger.System.PatchedEquipSwordTo
+            for _, v in getconnections(ReplicatedStorage.Remotes.ParrySuccessAll.OnClientEvent) do
+                if v.Function and debug.getinfo(v.Function).name == "parrySuccessAll" then
+                    SkinChanger.System.parrySuccessAllConnection = v
+                    SkinChanger.System.playParryFunc = v.Function
+                    print("[ACHAOTIC]:[DEBUG] Found parrySuccessAll connection")
+                    v:Disable()
+                    break
+                end
+            end
+            for i,v in getconnections(ReplicatedStorage.Remotes.ParrySuccessClient.Event) do
+                if v.Function and debug.getinfo(v.Function).name == "parrySuccessAll" then
+                    SkinChanger.System.parrySuccessClientConnection = v
+                    print("[Sky]:[DEBUG] Found parrySuccessClient connection")
+                    v:Disable()
+                end
+            end
+        else
+            if SkinChanger.System.OriginalSetSword then
+                ACHAOTICASSETS.SwordController.SetSword = SkinChanger.System.OriginalSetSword
+            end
+            if SkinChanger.System.OriginalEquipSwordTo then
+                ACHAOTICASSETS.swordInstances.EquipSwordTo = SkinChanger.System.OriginalEquipSwordTo
+            end
+            if SkinChanger.System.parrySuccessAllConnection then
+                pcall(function() SkinChanger.System.parrySuccessAllConnection:Enable() end)
+            end
+            if SkinChanger.System.parrySuccessClientConnection then
+                pcall(function() SkinChanger.System.parrySuccessClientConnection:Enable() end)
             end
         end
     end
@@ -3456,25 +3494,8 @@ do
     end))
 end
 
-do
-    for _, v in getconnections(ReplicatedStorage.Remotes.ParrySuccessAll.OnClientEvent) do
-        if v.Function and debug.getinfo(v.Function).name == "parrySuccessAll" then
-            SkinChanger.System.parrySuccessAllConnection = v
-            SkinChanger.System.playParryFunc = v.Function
-            print("[ACHAOTIC]:[DEBUG] Found parrySuccessAll connection")
-            v:Disable()
-            break
-        end
-    end
-
-    for i,v in getconnections(ReplicatedStorage.Remotes.ParrySuccessClient.Event) do
-        if v.Function and debug.getinfo(v.Function).name == "parrySuccessAll" then
-            SkinChanger.System.parrySuccessClientConnection = v
-            print("[Sky]:[DEBUG] Found parrySuccessClient connection")
-            v:Disable()
-        end
-    end
-end
+    -- Connection Disables moved into SkinChanger.System.ApplyHooks above
+    -- (runs only while SkinChanger is on).
 
 NeverZen:Track(ReplicatedStorage.Remotes.ParrySuccess.OnClientEvent:Connect(function()
     if ACHAOTICDATA.Config.Animation.SpamAnimationParries < 5 then
@@ -3640,6 +3661,7 @@ UnloadACHT = function()
     ACHTConfig.AutoSpamParry.Enabled = false
     Immortality.Enabled = false
     if Immortality.SetDesyncHook then Immortality.SetDesyncHook(false) end
+    if SkinChanger.System.ApplyHooks then SkinChanger.System.ApplyHooks(false) end
     Visuals.VisualiserService:ClearAll()
     SkinChanger.Enabled = false
     SkinChanger.System.parrySuccessAllConnection:Enable()
