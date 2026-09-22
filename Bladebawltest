@@ -1,39 +1,20 @@
--- range 6-6
--- Hardened: every Linoria call is pcall'd and named in F9 on failure, so one
--- range 1109-1142
-local Players = cloneref(game:GetService('Players'))
+repeat task.wait() until game:IsLoaded()
 local ReplicatedStorage = cloneref(game:GetService('ReplicatedStorage'))
 
-local Camera = workspace.CurrentCamera
-
+-- PHASE 1: require + upvalue rips only (no setfenv, no minting).
 local PRY = require(ReplicatedStorage:FindFirstChild('PRY', true))
-
 local Network = getupvalue(PRY, 6)
 local Constants = getupvalue(PRY, 3)
 local Convert = getupvalue(PRY, 4)
-
 local Hash1 = getupvalue(PRY, 8)
-local Hash2 = Constants[2]
-local Hash3 = function()
-    local Constant = Convert(Hash2, 'TIME')
-    local Time = tostring(math.floor(workspace:GetServerTimeNow() * 100))
-    local Encoded = {}
-    for i = 1, #Time do
-        local s1 = string.byte(Constant, ((i - 1) % #Constant) + 1)
-        Encoded[i] = string.char(bit32.bxor((string.byte(Time, i) + i) % 256, s1))
-    end
-    return table.concat(Encoded)
-end
+warn("[test] phase1 done (require+getupvalues) - idle 30s, note the clock")
+task.wait(30)
 
-local ParryRemote = nil; do
-    local RemoteName = string.gsub(game.JobId, '-', '')
-    local GetRemote = Network.RemoteEvent
-    task.spawn(function()
-        setthreadidentity(2)
-        setfenv(0, getfenv(PRY))
-        setfenv(1, getfenv(PRY))
-        ParryRemote = GetRemote(Network, RemoteName)
-    end)
-end
-warn("[SkyBB] variant live - holding")
+-- PHASE 2: mint WITHOUT setfenv spoofing (identity flip only).
+warn("[test] phase2: minting remote without setfenv")
+local RemoteName = string.gsub(game.JobId, '-', '')
+if setthreadidentity then setthreadidentity(2) end
+local ok, rem = pcall(Network.RemoteEvent, Network, RemoteName)
+warn("[test] mint ok=" .. tostring(ok) .. " rem=" .. tostring(rem and rem.Name))
+warn("[test] holding - note the clock if kicked")
 while true do task.wait(5) end
