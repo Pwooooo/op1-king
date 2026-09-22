@@ -2616,7 +2616,7 @@ do
     UI.SpamUI.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     UI.SpamUI.ScreenGui.ResetOnSpawn = false
     UI.SpamUI.ScreenGui.IgnoreGuiInset = true
-    UI.SpamUI.ScreenGui.Parent = CoreGui
+    UI.SpamUI.ScreenGui.Parent = (gethui and gethui()) or CoreGui
 
     NeverZen.ProtectGui(UI.SpamUI.ScreenGui)
 
@@ -2708,7 +2708,7 @@ do
     UI.TriggerBotUI.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     UI.TriggerBotUI.ScreenGui.ResetOnSpawn = false
     UI.TriggerBotUI.ScreenGui.IgnoreGuiInset = true
-    UI.TriggerBotUI.ScreenGui.Parent = CoreGui
+    UI.TriggerBotUI.ScreenGui.Parent = (gethui and gethui()) or CoreGui
 
     NeverZen.ProtectGui(UI.TriggerBotUI.ScreenGui)
 
@@ -2800,7 +2800,7 @@ do
     UI.ImmortalityUI.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     UI.ImmortalityUI.ScreenGui.ResetOnSpawn = false
     UI.ImmortalityUI.ScreenGui.IgnoreGuiInset = true
-    UI.ImmortalityUI.ScreenGui.Parent = CoreGui
+    UI.ImmortalityUI.ScreenGui.Parent = (gethui and gethui()) or CoreGui
 
     NeverZen.ProtectGui(UI.ImmortalityUI.ScreenGui)
 
@@ -2893,7 +2893,7 @@ do
     UI.BallStats.ScreenGui.ResetOnSpawn = false
     UI.BallStats.ScreenGui.IgnoreGuiInset = true
     UI.BallStats.ScreenGui.Enabled = false
-    UI.BallStats.ScreenGui.Parent = CoreGui
+    UI.BallStats.ScreenGui.Parent = (gethui and gethui()) or CoreGui
 
     NeverZen.ProtectGui(UI.BallStats.ScreenGui)
 
@@ -3036,7 +3036,7 @@ do
     UI.StatsUI.ScreenGui.ResetOnSpawn = false
     UI.StatsUI.ScreenGui.IgnoreGuiInset = true
     UI.StatsUI.ScreenGui.Enabled = false
-    UI.StatsUI.ScreenGui.Parent = CoreGui
+    UI.StatsUI.ScreenGui.Parent = (gethui and gethui()) or CoreGui
 
     NeverZen.ProtectGui(UI.StatsUI.ScreenGui)
 
