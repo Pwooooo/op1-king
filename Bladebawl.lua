@@ -19,6 +19,20 @@ if not setfflag or
     IsSupported = false
 end
 
+-- Chunk-level service locals: the original embedded lib defined these and the
+-- Blade Ball main uses them bare throughout. Without them everything is nil.
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local Players = cloneref(game:GetService("Players"))
+local Stats = cloneref(game:GetService("Stats"))
+local UserInputService = cloneref(game:GetService("UserInputService"))
+local RunService = cloneref(game:GetService("RunService"))
+local TweenService = cloneref(game:GetService("TweenService"))
+local CollectionService = cloneref(game:GetService("CollectionService"))
+local CoreGui = cloneref(game:GetService("CoreGui"))
+local Workspace = cloneref(game:GetService("Workspace"))
+local TextService = cloneref(game:GetService('TextService'))
+local Debris = cloneref(game:GetService("Debris"))
+
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/Library.lua"))()
 
 local NeverZen = { Version = "linoria-2" }
