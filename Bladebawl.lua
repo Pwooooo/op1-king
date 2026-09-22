@@ -3,6 +3,9 @@
 -- AddToggle/AddSlider/AddKeybind/AddDivider/AddDropdown/AddInput/AddButton/
 -- AddLabel calls, same handles (SetValue/SetText/GetValue/Fire), same
 -- NeverZen:Track/CreateNotifier/Unload. Linoria renders it all.
+-- Hardened: every Linoria call is pcall'd and named in F9 on failure, so one
+-- bad element can never silently abort the rest of the UI. Progress visible
+-- live via getgenv().SkyBB.Built.
 repeat task.wait() until game:IsLoaded()
 
 local IsSupported = true
@@ -58,6 +61,38 @@ end
 
 local function __noop() end
 
+local function __fail(kind, name, err)
+    warn("[SkyBB] " .. tostring(kind) .. " '" .. tostring(name) .. "' failed: " .. tostring(err))
+end
+
+local __built = 0
+local function __count()
+    __built += 1
+    pcall(function()
+        if getgenv then
+            local g = getgenv()
+            g.SkyBB = g.SkyBB or {}
+            g.SkyBB.Library = Library
+            g.SkyBB.Built = __built
+        end
+    end)
+end
+
+local __dummySection
+__dummySection = function()
+    local h = function()
+        return {
+            SetValue = __noop, SetText = __noop, SetValues = __noop,
+            GetValue = function() return nil end, Fire = __noop,
+            Visible = __noop, Destroy = __noop,
+        }
+    end
+    return {
+        AddToggle = h, AddSlider = h, AddButton = h, AddLabel = h,
+        AddDivider = h, AddDropdown = h, AddInput = h, AddKeybind = h,
+    }
+end
+
 function NeverZen:CreateNotifier()
     return {
         new = function(head, body, duration)
@@ -111,28 +146,49 @@ function NeverZen.new(config)
     end))
 
     local WindowSignal = {}
+    -- NeverZen sidebar titles ('General', 'Miscellaneous') have no Linoria
+    -- equivalent; tabs keep creation order, titles are skipped.
+    function WindowSignal:AddLabel(_)
+        return {}
+    end
     function WindowSignal:AddTab(cfg)
         cfg = cfg or {}
-        local tab = Window:AddTab(tostring(cfg.Name or "Tab"))
+        local ok, tab = pcall(function() return Window:AddTab(tostring(cfg.Name or "Tab")) end)
+        if not ok or not tab then
+            __fail("tab", cfg and cfg.Name, tab)
+            return { AddSection = function() return __dummySection() end }
+        end
         local TabSignal = {}
         function TabSignal:AddSection(scfg)
             scfg = scfg or {}
-            local gb
-            if tostring(scfg.Position or "left"):lower() == "right" then
-                gb = tab:AddRightGroupbox(tostring(scfg.Name or "Section"))
-            else
-                gb = tab:AddLeftGroupbox(tostring(scfg.Name or "Section"))
+            local ok2, gb = pcall(function()
+                if tostring(scfg.Position or "left"):lower() == "right" then
+                    return tab:AddRightGroupbox(tostring(scfg.Name or "Section"))
+                else
+                    return tab:AddLeftGroupbox(tostring(scfg.Name or "Section"))
+                end
+            end)
+            if not ok2 or not gb then
+                __fail("section", scfg and scfg.Name, gb)
+                return __dummySection()
             end
             local S = {}
 
             function S:AddToggle(tcfg)
                 tcfg = tcfg or {}
                 local idx = __nextId(tcfg.Name)
-                gb:AddToggle(idx, {
-                    Text = tostring(tcfg.Name or "Toggle"),
-                    Default = (tcfg.Default == true),
-                    Callback = function(v) pcall(tcfg.Callback or __noop, v) end,
-                })
+                local ok3, err = pcall(function()
+                    gb:AddToggle(idx, {
+                        Text = tostring(tcfg.Name or "Toggle"),
+                        Default = (tcfg.Default == true),
+                        Callback = function(v) pcall(tcfg.Callback or __noop, v) end,
+                    })
+                end)
+                if not ok3 then
+                    __fail("toggle", tcfg.Name, err)
+                    return { SetValue = __noop, Visible = __noop }
+                end
+                __count()
                 return {
                     SetValue = function(_, v)
                         pcall(function() Library.Toggles[idx]:SetValue(not not v) end)
@@ -144,15 +200,22 @@ function NeverZen.new(config)
             function S:AddSlider(ccfg)
                 ccfg = ccfg or {}
                 local idx = __nextId(ccfg.Name)
-                gb:AddSlider(idx, {
-                    Text = tostring(ccfg.Name or "Slider"),
-                    Default = tonumber(ccfg.Default) or tonumber(ccfg.Min) or 0,
-                    Min = tonumber(ccfg.Min) or 0,
-                    Max = tonumber(ccfg.Max) or 100,
-                    Rounding = tonumber(ccfg.Round) or 0,
-                    Suffix = tostring(ccfg.Type or ""),
-                    Callback = function(v) pcall(ccfg.Callback or __noop, v) end,
-                })
+                local ok3, err = pcall(function()
+                    gb:AddSlider(idx, {
+                        Text = tostring(ccfg.Name or "Slider"),
+                        Default = tonumber(ccfg.Default) or tonumber(ccfg.Min) or 0,
+                        Min = tonumber(ccfg.Min) or 0,
+                        Max = tonumber(ccfg.Max) or 100,
+                        Rounding = tonumber(ccfg.Round) or 0,
+                        Suffix = tostring(ccfg.Type or ""),
+                        Callback = function(v) pcall(ccfg.Callback or __noop, v) end,
+                    })
+                end)
+                if not ok3 then
+                    __fail("slider", ccfg.Name, err)
+                    return { SetValue = __noop, Fire = __noop, Visible = __noop }
+                end
+                __count()
                 return {
                     SetValue = function(_, v)
                         pcall(function() Library.Options[idx]:SetValue(v) end)
@@ -165,15 +228,27 @@ function NeverZen.new(config)
             function S:AddButton(bcfg)
                 bcfg = bcfg or {}
                 local cb = bcfg.Callback or __noop
-                gb:AddButton({
-                    Text = tostring(bcfg.Name or "Button"),
-                    Func = function() pcall(cb) end,
-                })
+                local ok3, err = pcall(function()
+                    gb:AddButton({
+                        Text = tostring(bcfg.Name or "Button"),
+                        Func = function() pcall(cb) end,
+                    })
+                end)
+                if not ok3 then
+                    __fail("button", bcfg.Name, err)
+                    return { Fire = __noop, Visible = __noop }
+                end
+                __count()
                 return { Fire = cb, Visible = __noop }
             end
 
             function S:AddLabel(text)
-                local lab = gb:AddLabel(tostring(text or ""))
+                local ok3, lab = pcall(function() return gb:AddLabel(tostring(text or "")) end)
+                if not ok3 or not lab then
+                    __fail("label", text, lab)
+                    return { SetValue = __noop, Visible = __noop }
+                end
+                __count()
                 return {
                     SetValue = function(_, v)
                         pcall(function() lab:SetText(tostring(v)) end)
@@ -182,13 +257,13 @@ function NeverZen.new(config)
                 }
             end
 
-            function S:AddDivider(dcfg)
-                dcfg = dcfg or {}
-                local ok = pcall(function() gb:AddDivider() end)
-                if ok then
+            function S:AddDivider(_)
+                local ok3 = pcall(function() gb:AddDivider() end)
+                __count()
+                if ok3 then
                     return { Visible = __noop, Destroy = __noop }
                 end
-                local lab = gb:AddLabel("")
+                local _, lab = pcall(function() return gb:AddLabel("") end)
                 return { Visible = __noop, Destroy = function() pcall(function() lab:Destroy() end) end }
             end
 
@@ -198,13 +273,20 @@ function NeverZen.new(config)
                 local vals = dcfg.Values or {}
                 local def = dcfg.Default
                 if def == nil then def = vals[1] end
-                gb:AddDropdown(idx, {
-                    Values = vals,
-                    Default = def,
-                    Multi = (dcfg.Multi == true),
-                    Text = tostring(dcfg.Name or "Dropdown"),
-                    Callback = function(v) pcall(dcfg.Callback or __noop, v) end,
-                })
+                local ok3, err = pcall(function()
+                    gb:AddDropdown(idx, {
+                        Values = vals,
+                        Default = def,
+                        Multi = (dcfg.Multi == true),
+                        Text = tostring(dcfg.Name or "Dropdown"),
+                        Callback = function(v) pcall(dcfg.Callback or __noop, v) end,
+                    })
+                end)
+                if not ok3 then
+                    __fail("dropdown", dcfg.Name, err)
+                    return { SetValue = __noop, SetValues = __noop, Fire = __noop, Visible = __noop }
+                end
+                __count()
                 return {
                     SetValue = function(_, v)
                         pcall(function() Library.Options[idx]:SetValue(v) end)
@@ -223,8 +305,8 @@ function NeverZen.new(config)
                 icfg = icfg or {}
                 local cb = icfg.Callback or __noop
                 local box
-                local holder = gb:AddLabel(tostring(icfg.Name or "Input"))
-                pcall(function()
+                local ok3, err = pcall(function()
+                    gb:AddLabel(tostring(icfg.Name or "Input"))
                     local gui = gb.Container
                     box = Instance.new("TextBox")
                     box.Size = UDim2.new(1, -8, 0, 22)
@@ -245,16 +327,20 @@ function NeverZen.new(config)
                         pcall(cb, box.Text)
                     end))
                 end)
-                if not box then
-                    gb:AddInput(__nextId(icfg.Name), {
-                        Default = tostring(icfg.Default or ""),
-                        Numeric = false,
-                        Finished = false,
-                        Text = tostring(icfg.Name or "Input"),
-                        Placeholder = tostring(icfg.Placeholder or "Type here..."),
-                        Callback = function(v) pcall(cb, v) end,
-                    })
+                if not ok3 or not box then
+                    __fail("input", icfg.Name, err)
+                    pcall(function()
+                        gb:AddInput(__nextId(icfg.Name), {
+                            Default = tostring(icfg.Default or ""),
+                            Numeric = false,
+                            Finished = false,
+                            Text = tostring(icfg.Name or "Input"),
+                            Placeholder = tostring(icfg.Placeholder or "Type here..."),
+                            Callback = function(v) pcall(cb, v) end,
+                        })
+                    end)
                 end
+                __count()
                 return {
                     SetValue = function(_, v)
                         if box then box.Text = tostring(v) end
@@ -279,17 +365,27 @@ function NeverZen.new(config)
                     if typeof(k) == "EnumItem" then return k.Name end
                     return "NONE"
                 end
-                -- Bind shown on a label (reliable SetText); button arms rebind.
-                local disp = gb:AddLabel(tostring(kcfg.Name or "Keybind") .. ": [ " .. fmt(current) .. " ]")
+                local ok3, disp = pcall(function()
+                    return gb:AddLabel(tostring(kcfg.Name or "Keybind") .. ": [ " .. fmt(current) .. " ]")
+                end)
+                if not ok3 or not disp then
+                    __fail("keybind", kcfg.Name, disp)
+                    return { SetValue = __noop, Fire = __noop, Visible = __noop }
+                end
                 local binding = false
                 local function refresh()
                     local t = tostring(kcfg.Name or "Keybind") .. ": [ " .. (binding and "..." or fmt(current)) .. " ]"
                     pcall(function() disp:SetText(t) end)
                 end
-                gb:AddButton({
-                    Text = "Set keybind",
-                    Func = function() binding = true refresh() end,
-                })
+                local ok4, err4 = pcall(function()
+                    gb:AddButton({
+                        Text = "Set keybind",
+                        Func = function() binding = true refresh() end,
+                    })
+                end)
+                if not ok4 then
+                    __fail("keybind-button", kcfg.Name, err4)
+                end
                 NeverZen:Track(game:GetService("UserInputService").InputBegan:Connect(function(inp)
                     if not binding then return end
                     if inp.KeyCode == Enum.KeyCode.Unknown then return end
@@ -298,6 +394,7 @@ function NeverZen.new(config)
                     refresh()
                     pcall(cb, current)
                 end))
+                __count()
                 return {
                     SetValue = function(_, v)
                         current = v
