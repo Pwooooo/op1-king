@@ -1157,11 +1157,8 @@ local CameraCenter = Camera.ViewportSize / 2
             ReplicatedStorage.Remotes.SecondaryEndCD:FireServer()
         end
     end)
-    if tick() - (__dbgParryT or 0) > 1 then
-        __dbgParryT = tick()
-        warn("[dbg] Parry() remote=" .. tostring(ParryRemote and ParryRemote.Name) .. " firing")
-    end
-    ParryRemote:FireServer(Hash1, Hash2, Hash3(), 0.025, Camera.CFrame, PlayerPositions, CameraData, false)
+    warn("[dbg] TEST: firing ParryAttempt (hash channel bypassed)")
+    ReplicatedStorage.Remotes.ParryAttempt:FireServer()
     ACHAOTICDATA.Global.PingStart = os.clock()
 end
 local ExecuteRemoteFireServer = function(ParryData)
@@ -1193,17 +1190,8 @@ local FireParry = function()
         local SafeModeEnabled = ACHAOTICDATA.Config.ParrySettings.SafeMode
         local ShouldExecuteRemoteFireServer = (IsBlockLegit and SafeModeEnabled) or not SafeModeEnabled
         if ShouldExecuteRemoteFireServer then
-            if tick() - (__dbgFireT or 0) > 1 then
-                __dbgFireT = tick()
-                warn("[dbg] FireParry: FIRING blatant")
-            end
             local ParryData = GetParry_Data(ACHAOTICDATA.Config.ParrySettings.ParryCurveDirection, IsInLobbyTrainning)
             ExecuteRemoteFireServer(ParryData)
-        else
-            if tick() - (__dbgBlockT or 0) > 1 then
-                __dbgBlockT = tick()
-                warn("[dbg] FireParry: BLOCKED legit=" .. tostring(IsBlockLegit) .. " safe=" .. tostring(SafeModeEnabled))
-            end
         end
     elseif ParryMethod == "Legit" then
         local BlockButton = ACHAOTICDATA.Player.LocalPlayer.PlayerGui.Hotbar.Block
