@@ -1,1 +1,34 @@
 
+-- Docs 
+-- https://github.com/sarahsophiesee-bot/OnyxUI/blob/main/README.md
+
+local Onyx = loadstring(game:HttpGet("https://cdn.jnkie.com/OnyxUI.lua"))()
+
+Onyx.Appearance = {
+    Title           = "Onyx",
+    Subtitle        = "Enter your key to continue",
+    KeylessTitle    = "Onyx",
+    KeylessSubtitle = "No key required for this build - you're verified.",
+    Icon            = "",   -- optional rbxassetid:// shown left of the wordmark
+}
+
+Onyx.Links.Discord = "discord.gg/jnkie"
+Onyx.Storage.FileName = "Jnkie_key"
+-- Onyx.Options.KeylessUi = "true"
+
+Onyx.Shop = {
+    Enabled = true,
+    Icon = "",
+    Title = "Get Premium",
+    Subtitle = "Instant delivery • 24/7 support",
+    ButtonText = "Buy",
+    Link = "jnkie.com"
+}
+
+
+Onyx:LaunchJunkie({
+    Service = "Winnieluvsyall",
+    Identifier = "1170957",
+    Provider = "Sky"
+})
+    
