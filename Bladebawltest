@@ -1,20 +1,8 @@
 repeat task.wait() until game:IsLoaded()
-local ReplicatedStorage = cloneref(game:GetService('ReplicatedStorage'))
-
--- PHASE 1: require + upvalue rips only (no setfenv, no minting).
-local PRY = require(ReplicatedStorage:FindFirstChild('PRY', true))
-local Network = getupvalue(PRY, 6)
-local Constants = getupvalue(PRY, 3)
-local Convert = getupvalue(PRY, 4)
-local Hash1 = getupvalue(PRY, 8)
-warn("[test] phase1 done (require+getupvalues) - idle 30s, note the clock")
-task.wait(30)
-
--- PHASE 2: mint WITHOUT setfenv spoofing (identity flip only).
-warn("[test] phase2: minting remote without setfenv")
+local net = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_net@0.1.0"].net
 local RemoteName = string.gsub(game.JobId, '-', '')
-if setthreadidentity then setthreadidentity(2) end
-local ok, rem = pcall(Network.RemoteEvent, Network, RemoteName)
-warn("[test] mint ok=" .. tostring(ok) .. " rem=" .. tostring(rem and rem.Name))
-warn("[test] holding - note the clock if kicked")
+local before = net:FindFirstChild("RE/" .. RemoteName)
+warn("[test] looking for RE/" .. RemoteName)
+warn("[test] pre-existing: " .. tostring(before and (before.ClassName .. " " .. before.Name) or "NIL - game never created it"))
+warn("[test] holding 90s")
 while true do task.wait(5) end
