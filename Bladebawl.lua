@@ -1130,15 +1130,18 @@ local Hash3 = function()
     return table.concat(Encoded)
 end
 
+-- Lookup only: the game pre-creates its own per-server parry remote.
+-- Minting it via setfenv-spoofed Network.RemoteEvent trips BAC instantly.
 local ParryRemote = nil; do
     local RemoteName = string.gsub(game.JobId, '-', '')
-    local GetRemote = Network.RemoteEvent
-    task.spawn(function()
-        setthreadidentity(2)
-        setfenv(0, getfenv(PRY))
-        setfenv(1, getfenv(PRY))
-        ParryRemote = GetRemote(Network, RemoteName)
-    end)
+    local netFolder = ReplicatedStorage.Packages._Index["sleitnick_net@0.1.0"].net
+    ParryRemote = netFolder:WaitForChild("RE/" .. RemoteName, 15)
+    if not ParryRemote then
+        warn("[Sky] parry remote not present yet - blatant will idle until it replicates")
+        task.spawn(function()
+            ParryRemote = netFolder:WaitForChild("RE/" .. RemoteName, 60)
+        end)
+    end
 end
 
 local function Parry()
