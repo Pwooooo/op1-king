@@ -2242,6 +2242,7 @@ do
         Default = Immortality.Enabled,
         Callback = function(value)
             Immortality.Enabled = value
+            if Immortality.SetDesyncHook then Immortality.SetDesyncHook(value) end
             ImmortalityUIService:SetColor(value)
         end,
     })
@@ -3325,19 +3326,34 @@ do
         end
     end))
 
-    local oldIndex
-    oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
-        if Immortality.Enabled and not checkcaller() then
-            if key == "CFrame" and GetCharacter() and GetCharacter():FindFirstChild("HumanoidRootPart") then
-                if self == GetCharacter().HumanoidRootPart then
-                    return DesyncTypes[1] or CFrame.new()
-                elseif self == GetCharacter():FindFirstChild("Head") then
-                    return DesyncTypes[1] and DesyncTypes[1] + Vector3.new(0, GetCharacter().HumanoidRootPart.Size / 2 + 0.5, 0) or CFrame.new()
+    -- Lazy desync hook: installing hookmetamethod at load trips BAC's
+    -- metatable integrity heartbeat (~20s). Installed only while
+    -- Immortality is on; pristine __index restored when turned off.
+    Immortality.DesyncHooked = false
+    Immortality.DesyncOldIndex = nil
+    Immortality.SetDesyncHook = function(on)
+        if on and not Immortality.DesyncHooked then
+            Immortality.DesyncHooked = true
+            Immortality.DesyncOldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
+                if Immortality.Enabled and not checkcaller() then
+                    if key == "CFrame" and GetCharacter() and GetCharacter():FindFirstChild("HumanoidRootPart") then
+                        if self == GetCharacter().HumanoidRootPart then
+                            return DesyncTypes[1] or CFrame.new()
+                        elseif self == GetCharacter():FindFirstChild("Head") then
+                            return DesyncTypes[1] and DesyncTypes[1] + Vector3.new(0, GetCharacter().HumanoidRootPart.Size / 2 + 0.5, 0) or CFrame.new()
+                        end
+                    end
                 end
-            end
+                local old = Immortality.DesyncOldIndex
+                return old(self, key)
+            end))
+        elseif not on and Immortality.DesyncHooked then
+            Immortality.DesyncHooked = false
+            local old = Immortality.DesyncOldIndex
+            Immortality.DesyncOldIndex = nil
+            if old then pcall(hookmetamethod, game, "__index", old) end
         end
-        return oldIndex(self, key)
-    end))
+    end
 end
 
 do 
@@ -3623,6 +3639,7 @@ UnloadACHT = function()
     ACHTConfig.TriggerBot.Enabled = false
     ACHTConfig.AutoSpamParry.Enabled = false
     Immortality.Enabled = false
+    if Immortality.SetDesyncHook then Immortality.SetDesyncHook(false) end
     Visuals.VisualiserService:ClearAll()
     SkinChanger.Enabled = false
     SkinChanger.System.parrySuccessAllConnection:Enable()
