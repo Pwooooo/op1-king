@@ -1,0 +1,39 @@
+-- range 6-6
+-- Hardened: every Linoria call is pcall'd and named in F9 on failure, so one
+-- range 1109-1142
+local Players = cloneref(game:GetService('Players'))
+local ReplicatedStorage = cloneref(game:GetService('ReplicatedStorage'))
+
+local Camera = workspace.CurrentCamera
+
+local PRY = require(ReplicatedStorage:FindFirstChild('PRY', true))
+
+local Network = getupvalue(PRY, 6)
+local Constants = getupvalue(PRY, 3)
+local Convert = getupvalue(PRY, 4)
+
+local Hash1 = getupvalue(PRY, 8)
+local Hash2 = Constants[2]
+local Hash3 = function()
+    local Constant = Convert(Hash2, 'TIME')
+    local Time = tostring(math.floor(workspace:GetServerTimeNow() * 100))
+    local Encoded = {}
+    for i = 1, #Time do
+        local s1 = string.byte(Constant, ((i - 1) % #Constant) + 1)
+        Encoded[i] = string.char(bit32.bxor((string.byte(Time, i) + i) % 256, s1))
+    end
+    return table.concat(Encoded)
+end
+
+local ParryRemote = nil; do
+    local RemoteName = string.gsub(game.JobId, '-', '')
+    local GetRemote = Network.RemoteEvent
+    task.spawn(function()
+        setthreadidentity(2)
+        setfenv(0, getfenv(PRY))
+        setfenv(1, getfenv(PRY))
+        ParryRemote = GetRemote(Network, RemoteName)
+    end)
+end
+warn("[SkyBB] variant live - holding")
+while true do task.wait(5) end
