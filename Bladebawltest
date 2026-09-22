@@ -1,5 +1,19 @@
+warn("[test] start - script is running")
 repeat task.wait() until game:IsLoaded()
-local net = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_net@0.1.0"].net
+warn("[test] game loaded")
+local RS = game:GetService("ReplicatedStorage")
+local pkgs = RS:WaitForChild("Packages", 15)
+warn("[test] packages: " .. tostring(pkgs and pkgs.Name))
+if not pkgs then return end
+local idx = pkgs:WaitForChild("_Index", 15)
+warn("[test] _index: " .. tostring(idx and idx.Name))
+if not idx then return end
+local netmod = idx:FindFirstChild("sleitnick_net@0.1.0")
+warn("[test] net module: " .. tostring(netmod and netmod.Name))
+if not netmod then return end
+local net = netmod:FindFirstChild("net")
+warn("[test] net folder: " .. tostring(net and net.Name))
+if not net then return end
 local RemoteName = string.gsub(game.JobId, '-', '')
 local before = net:FindFirstChild("RE/" .. RemoteName)
 warn("[test] looking for RE/" .. RemoteName)
