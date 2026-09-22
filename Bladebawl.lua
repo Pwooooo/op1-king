@@ -1112,7 +1112,9 @@ local Constants = getupvalue(PRY, 3)
 local Convert = getupvalue(PRY, 4)
 
 local Hash1 = getupvalue(PRY, 8)
-local Hash2 = Constants[2]
+-- v6361 moved the TIME key: Constants[2] is now a nested table, the key
+-- string lives at Constants[3] (verified live via Convert probe).
+local Hash2 = (type(Constants[2]) == "string" and Constants[2]) or Constants[3]
 local Hash3 = function()
     local Constant = Convert(Hash2, 'TIME')
     local Time = tostring(math.floor(workspace:GetServerTimeNow() * 100))
