@@ -437,30 +437,24 @@ local ParryDATA = {
     ParryIndex = 0.500,
 }
        
+-- Direct resolution: the game pre-creates its own per-server parry remote.
+-- The old getgc shape-scan matches nothing on current versions and a full
+-- GC sweep is exactly the kind of bulk enumeration BAC watches for.
 local function AttemptFunctionFetch()
     local ParryDATACache = {
         ParryFunction = nil,
         ParryRemote = nil,
     }
-    for index, value in pairs(getgc(true)) do
-        if type(value) == "function" and islclosure(value) then
-            local upvalues = debug.getupvalues(value)
-            if #upvalues == 9 and (typeof(upvalues[1]) == "Instance" and typeof(upvalues[5]) == "table" and typeof(upvalues[8]) == "string") then
-                ParryDATACache.ParryFunction = value
-            end
-        elseif type(value) == "table" then
-            local value4, value5 = rawget(value, 2), rawget(value, 3)
-            if not ParryDATACache.ParryRemote and type(value4) == "function" and type(value5) == "string" and type(rawget(value, 0)) == "table" then
-                if string.len(value5) >= 36 and string.sub(value5, 9, 9) == "-" then
-                    local PRPackages = ReplicatedStorage.Packages
-                    local PRREName = "RE/" .. value4(string.gsub(value5, "-", ""), value5)
-                    local PRInstance = PRPackages._Index["sleitnick_net@0.1.0"].net:FindFirstChild(PRREName)
-                    ParryDATACache.ParryRemote = PRInstance
-                end
+    pcall(function()
+        local netFolder = ReplicatedStorage.Packages._Index["sleitnick_net@0.1.0"].net
+        local remote = netFolder:FindFirstChild("RE/" .. string.gsub(game.JobId, '-', ''))
+        if remote then
+            ParryDATACache.ParryRemote = remote
+            ParryDATACache.ParryFunction = function(...)
+                return remote:FireServer(...)
             end
         end
-        if ParryDATACache.ParryFunction and ParryDATACache.ParryRemote then break end
-    end
+    end)
     return ParryDATACache
 end
 
