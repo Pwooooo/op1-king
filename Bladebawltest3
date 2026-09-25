@@ -1,25 +1,29 @@
 repeat task.wait() until game:IsLoaded()
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local RS = game:GetService("ReplicatedStorage")
 local lp = Players.LocalPlayer
-warn("[dist] pure distance test live - ParryAttempt at <= 4 studs, 0.5s cooldown")
-local lastFire = 0
+warn("[obs] observer live - reporting every 2s. Get in a REAL round, alive.")
 while true do
-    task.wait()
+    task.wait(2)
     local ch = lp.Character
+    local inAlive = ch and ch.Parent == Workspace:FindFirstChild("Alive")
     local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-    local balls = Workspace:FindFirstChild("Balls")
-    if hrp and balls then
-        for _, ball in ipairs(balls:GetChildren()) do
-            if ball:GetAttribute("target") == lp.Name then
-                local d = (ball.Position - hrp.Position).Magnitude
-                if d <= 4 and tick() - lastFire > 0.5 then
-                    lastFire = tick()
-                    warn("[dist] FIRE at " .. string.format("%.2f", d) .. " studs")
-                    pcall(function() RS.Remotes.ParryAttempt:FireServer() end)
-                end
+    local ballsFolder = Workspace:FindFirstChild("Balls")
+    local raw = ballsFolder and #ballsFolder:GetChildren() or -1
+    local real, targeted, mindist, zoom = 0, 0, -1, 0
+    if ballsFolder and hrp then
+        for _, b in ipairs(ballsFolder:GetChildren()) do
+            if b:GetAttribute("realBall") then real += 1 end
+            if b:FindFirstChild("zoomies") then zoom += 1 end
+            if b:GetAttribute("target") == lp.Name then
+                targeted += 1
+                local d = (b.Position - hrp.Position).Magnitude
+                if mindist < 0 or d < mindist then mindist = d end
             end
         end
     end
+    warn(string.format("[obs] alive=%s raw=%s realBall=%s zoomies=%s targetedMe=%s minDist=%s stunned=%s donot=%s",
+        tostring(inAlive), tostring(raw), tostring(real), tostring(zoom),
+        tostring(targeted), mindist >= 0 and string.format("%.1f", mindist) or "n/a",
+        tostring(ch and ch:GetAttribute("Stunned")), tostring(ch and ch:GetAttribute("DoNotParry"))))
 end
