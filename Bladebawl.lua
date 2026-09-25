@@ -1417,7 +1417,19 @@ if not ACHAOTICDATA.Parry[Ball] then
                 end
 
                 local zoomies = Ball:FindFirstChild('zoomies')
-                if not zoomies then
+                -- Velocity with fallbacks: if the mover child lost its
+                -- VectorVelocity (class change), the property read throws,
+                -- and pcall(MainConnection) used to swallow it so AP died
+                -- every frame with zero output.
+                local velVec = nil
+                pcall(function()
+                    if zoomies and zoomies.VectorVelocity then
+                        velVec = zoomies.VectorVelocity
+                    elseif Ball.AssemblyLinearVelocity and Ball.AssemblyLinearVelocity.Magnitude > 0 then
+                        velVec = Ball.AssemblyLinearVelocity
+                    end
+                end)
+                if not velVec then
                     continue
                 end
 
@@ -1426,7 +1438,7 @@ Ball:GetAttributeChangedSignal('target'):Once(function()
                 end)
 
                 local ball_target = Ball:GetAttribute('target')
-                local velocity = zoomies.VectorVelocity
+                local velocity = { Magnitude = velVec.Magnitude, Unit = velVec.Unit }
                 local distance = (GetCharacter().PrimaryPart.Position - Ball.Position).Magnitude
                 local ping = ACHAOTICDATA.Global.RealtimePing or 30
                 local ping_threshold = math.clamp(ping / 10, 5, 17)
