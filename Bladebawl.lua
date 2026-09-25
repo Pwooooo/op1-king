@@ -1141,17 +1141,15 @@ local ParryRemote = nil; do
 end
 
 local function Parry()
-    local PlayerPositions = {}
-    for _, char in next, workspace.Alive:GetChildren() do
-        if char:FindFirstChild('HumanoidRootPart') then
-            PlayerPositions[char.Name] = char.HumanoidRootPart.Position
-        end
-    end
-local CameraCenter = Camera.ViewportSize / 2
-    local CameraData = {CameraCenter.X, CameraCenter.Y}
-    print(Hash3())
+    -- Proven live path (SwordsController:700): ParryButtonPress (BindableEvent)
+    -- :Fire() -> game fires ParryAttempt:FireServer() with no args.
+    -- NOTE: old code called :FireServer() on the BindableEvent -> silent no-op.
     pcall(function()
-        ReplicatedStorage.Remotes.ParryButtonPress:FireServer()
+        local pb = ReplicatedStorage.Remotes:FindFirstChild("ParryButtonPress")
+        if pb then pb:Fire() end
+    end)
+    pcall(function()
+        ReplicatedStorage.Remotes.ParryAttempt:FireServer()
         if ACHAOTICDATA.Config.ParrySettings.RemoveCooldown then
             ReplicatedStorage.Remotes.UnParry:FireServer()
             ReplicatedStorage.Remotes.ResetAbilityCooldown:FireServer()
@@ -1159,7 +1157,21 @@ local CameraCenter = Camera.ViewportSize / 2
             ReplicatedStorage.Remotes.SecondaryEndCD:FireServer()
         end
     end)
-    ParryRemote:FireServer(Hash1, Hash2, Hash3(), 0.025, Camera.CFrame, PlayerPositions, CameraData, false)
+    -- Hash fallback (looked-up RE/<jobid> remote, no minting). Kept for
+    -- servers where the plain path is gated; guarded so a dead hash can't
+    -- kill the parry above.
+    pcall(function()
+        if not ParryRemote then return end
+        local PlayerPositions = {}
+        for _, char in next, workspace.Alive:GetChildren() do
+            if char:FindFirstChild('HumanoidRootPart') then
+                PlayerPositions[char.Name] = char.HumanoidRootPart.Position
+            end
+        end
+        local CameraCenter = Camera.ViewportSize / 2
+        local CameraData = {CameraCenter.X, CameraCenter.Y}
+        ParryRemote:FireServer(Hash1, Hash2, Hash3(), 0.025, Camera.CFrame, PlayerPositions, CameraData, false)
+    end)
     ACHAOTICDATA.Global.PingStart = os.clock()
 end
 local ExecuteRemoteFireServer = function(ParryData)
