@@ -1203,7 +1203,11 @@ local FireParry = function()
         local SafeModeEnabled = ACHAOTICDATA.Config.ParrySettings.SafeMode
         local ShouldExecuteRemoteFireServer = (IsBlockLegit and SafeModeEnabled) or not SafeModeEnabled
         if ShouldExecuteRemoteFireServer then
-            local ParryData = GetParry_Data(ACHAOTICDATA.Config.ParrySettings.ParryCurveDirection, IsInLobbyTrainning)
+            -- GetParry_Data's return value is unused (ExecuteRemoteFireServer
+            -- ignores it), but any error inside it silently kills the parry
+            -- (F9 showed FIRING with Parry() never running). Never let it block.
+            local okPD, ParryData = pcall(GetParry_Data, ACHAOTICDATA.Config.ParrySettings.ParryCurveDirection, IsInLobbyTrainning)
+            if not okPD then ParryData = nil end
             ExecuteRemoteFireServer(ParryData)
         end
     elseif ParryMethod == "Legit" then
